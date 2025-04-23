@@ -73,8 +73,22 @@ export const FlashcardProvider = ({ children }) => {
         ...doc.data()
       }));
       
-      if (flashcardsData.length > 0) {
-        setCards(flashcardsData);
+      // FIX: Deduplicate cards by ID to prevent double-counting
+      const uniqueIds = new Set();
+      const uniqueCards = [];
+      
+      flashcardsData.forEach(card => {
+        if (!uniqueIds.has(card.id)) {
+          uniqueIds.add(card.id);
+          uniqueCards.push(card);
+        } else {
+          console.warn(`Duplicate card ID found: ${card.id}`);
+        }
+      });
+      
+      if (uniqueCards.length > 0) {
+        setCards(uniqueCards);
+        console.log(`Loaded ${uniqueCards.length} unique cards (filtered from ${flashcardsData.length} total)`);
       } else {
         // If no cards exist for this user yet, initialize with default cards
         initializeUserFlashcards();
@@ -119,7 +133,7 @@ export const FlashcardProvider = ({ children }) => {
   // Update stats whenever cards change
   useEffect(() => {
     if (Array.isArray(cards) && cards.length > 0) {
-      // Update stats
+      // Update stats with counting unique cards only
       setStats({
         total: cards.length,
         known: cards.filter(card => card.known).length,

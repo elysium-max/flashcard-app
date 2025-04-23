@@ -40,19 +40,19 @@ const Flashcard = () => {
     }
   }, [cards, studyMode, currentCard, getNextCard]);
   
-  // Format the front side of the card
+  // Format the front side of the card - FIXED VERSION for handling "się" verbs
   const formatFrontContent = (frontText) => {
     if (!frontText) return <div className="card-content"><div className="vocab-word">No content</div></div>;
     
-    // Special case for reflexive verbs with "się"
-    // First check if the text contains "się" to determine if we need special handling
-    if (frontText.includes(' się') && !frontText.includes(' się ')) {
-      // This catches cases where "się" is at the end of the verb
-      const match = frontText.match(/^([\wąćęłńóśźż]+(?: się)(?: \([^)]+\))?) (.+)$/i);
+    // First check if we're dealing with a reflexive verb (has "się" in it)
+    if (frontText.includes('się')) {
+      // This regex specifically handles reflexive verbs
+      // Format: "starzeć się (impf.) Wszyscy się starzejemy, to naturalne."
+      const reflexiveMatch = frontText.match(/^([\wąćęłńóśźż]+ się(?: \([^)]+\))?) (.+)$/i);
       
-      if (match) {
-        const vocabWord = match[1]; // Verb with "się" and any parenthetical info
-        const example = match[2];   // Example sentence
+      if (reflexiveMatch) {
+        const vocabWord = reflexiveMatch[1]; // Verb with "się" and any parenthetical info
+        const example = reflexiveMatch[2];   // Example sentence
         
         return (
           <div className="card-content">
@@ -64,11 +64,11 @@ const Flashcard = () => {
     }
     
     // Handle standard format with or without parenthetical info
-    const match = frontText.match(/^([\wąćęłńóśźż]+(?: \([^)]+\))?) (.+)$/i);
+    const standardMatch = frontText.match(/^([\wąćęłńóśźż]+(?: \([^)]+\))?) (.+)$/i);
     
-    if (match) {
-      const vocabWord = match[1]; // Word and any parenthetical info
-      const example = match[2];   // Example sentence
+    if (standardMatch) {
+      const vocabWord = standardMatch[1]; // Word and any parenthetical info
+      const example = standardMatch[2];   // Example sentence
       
       return (
         <div className="card-content">
