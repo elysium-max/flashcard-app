@@ -25,10 +25,13 @@ import {
 export const FlashcardContext = createContext();
 
 export const FlashcardProvider = ({ children }) => {
-  // Add authentication state
+  // Authentication state
   const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [authLoading, setAuthLoading] = useState(true);
+  
+  // Flashcards state
   const [cards, setCards] = useState([]);
+  const [cardsLoading, setCardsLoading] = useState(false);
   const [currentCardIndex, setCurrentCardIndex] = useState(0);
   const [studyMode, setStudyMode] = useState('all');
   const [stats, setStats] = useState({
@@ -38,11 +41,14 @@ export const FlashcardProvider = ({ children }) => {
     reviewed: 0
   });
 
+  // Combine loading states for the app
+  const loading = authLoading || cardsLoading;
+
   // Check authentication state on mount
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
-      setLoading(false);
+      setAuthLoading(false);
     });
 
     return () => unsubscribe();
@@ -50,13 +56,14 @@ export const FlashcardProvider = ({ children }) => {
 
   // Load flashcards from Firestore if user is authenticated
   useEffect(() => {
+    // Clear cards when user logs out
     if (!user) {
-      // If not signed in, use localStorage as fallback
-      const savedCards = localStorage.getItem('flashcards');
-      const initialCards = savedCards ? JSON.parse(savedCards) : flashcards;
-      setCards(initialCards);
+      setCards([]);
       return;
     }
+
+    // Set loading state
+    setCardsLoading(true);
 
     // Set up real-time listener for user's flashcards
     const q = query(collection(db, 'flashcards'), where('userId', '==', user.uid));
@@ -70,11 +77,13 @@ export const FlashcardProvider = ({ children }) => {
         setCards(flashcardsData);
       } else {
         // If no cards exist for this user yet, initialize with default cards
-        // and add them to Firestore
         initializeUserFlashcards();
       }
+      
+      setCardsLoading(false);
     }, (error) => {
       console.error("Error fetching flashcards:", error);
+      setCardsLoading(false);
     });
 
     return () => unsubscribe();
@@ -83,15 +92,13 @@ export const FlashcardProvider = ({ children }) => {
   // Initialize user's flashcards in Firestore
   const initializeUserFlashcards = async () => {
     try {
-      // First check if there were any cards in localStorage
-      const savedCards = localStorage.getItem('flashcards');
-      const cardsToUse = savedCards ? JSON.parse(savedCards) : flashcards;
-      
       // Add userId to each card
-      const userFlashcards = cardsToUse.map(card => ({
+      const userFlashcards = flashcards.map(card => ({
         ...card,
         userId: user.uid,
-        // Generate new IDs for each card will be handled by Firestore
+        known: false,
+        timesReviewed: 0,
+        lastReviewed: null
       }));
       
       // Batch add cards to Firestore
@@ -111,7 +118,7 @@ export const FlashcardProvider = ({ children }) => {
 
   // Update stats whenever cards change
   useEffect(() => {
-    if (Array.isArray(cards)) {
+    if (Array.isArray(cards) && cards.length > 0) {
       // Update stats
       setStats({
         total: cards.length,
@@ -119,48 +126,103 @@ export const FlashcardProvider = ({ children }) => {
         unknown: cards.filter(card => !card.known).length,
         reviewed: cards.reduce((sum, card) => sum + (card.timesReviewed || 0), 0)
       });
+    } else {
+      // Reset stats if no cards
+      setStats({
+        total: 0,
+        known: 0,
+        unknown: 0,
+        reviewed: 0
+      });
+    }
+  }, [cards]);
 
-      // If not signed in, save to localStorage as fallback
-      if (!user) {
-        localStorage.setItem('flashcards', JSON.stringify(cards));
+  // Authentication functions with error handling
+  const registerUser = async (email, password) => {
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      return userCredential.user;
+    } catch (error) {
+      // Translate Firebase error codes to user-friendly messages
+      switch (error.code) {
+        case 'auth/email-already-in-use':
+          throw new Error('This email is already registered. Please sign in instead.');
+        case 'auth/invalid-email':
+          throw new Error('Please enter a valid email address.');
+        case 'auth/weak-password':
+          throw new Error('Password should be at least 6 characters.');
+        default:
+          throw new Error('Failed to create account. Please try again.');
       }
     }
-  }, [cards, user]);
+  };
+
+  const loginUser = async (email, password) => {
+    try {
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      return userCredential.user;
+    } catch (error) {
+      // Translate Firebase error codes to user-friendly messages
+      switch (error.code) {
+        case 'auth/user-not-found':
+        case 'auth/wrong-password':
+          throw new Error('Invalid email or password.');
+        case 'auth/invalid-email':
+          throw new Error('Please enter a valid email address.');
+        case 'auth/user-disabled':
+          throw new Error('This account has been disabled.');
+        case 'auth/too-many-requests':
+          throw new Error('Too many unsuccessful login attempts. Please try again later.');
+        default:
+          throw new Error('Failed to sign in. Please try again.');
+      }
+    }
+  };
+
+  const logoutUser = async () => {
+    try {
+      await signOut(auth);
+      // Reset state after logout
+      setCards([]);
+      setCurrentCardIndex(0);
+    } catch (error) {
+      throw new Error('Failed to sign out. Please try again.');
+    }
+  };
 
   // Function to set a card's known status
   const setCardStatus = async (id, isKnown) => {
-    const updatedCards = cards.map(card => 
-      card.id === id 
-        ? { 
-            ...card, 
-            known: isKnown, 
-            lastReviewed: new Date().toISOString(),
-            timesReviewed: (card.timesReviewed || 0) + 1
-          } 
-        : card
-    );
+    if (!user) return;
+    
+    try {
+      const updatedCards = cards.map(card => 
+        card.id === id 
+          ? { 
+              ...card, 
+              known: isKnown, 
+              lastReviewed: new Date().toISOString(),
+              timesReviewed: (card.timesReviewed || 0) + 1
+            } 
+          : card
+      );
 
-    setCards(updatedCards);
+      setCards(updatedCards);
 
-    // Update in Firestore if user is signed in
-    if (user) {
-      try {
-        const updatedCard = updatedCards.find(card => card.id === id);
-        await updateDoc(doc(db, 'flashcards', id), {
-          known: isKnown,
-          lastReviewed: new Date().toISOString(),
-          timesReviewed: updatedCard.timesReviewed
-        });
-      } catch (error) {
-        console.error('Error updating card:', error);
-      }
+      // Update in Firestore
+      const updatedCard = updatedCards.find(card => card.id === id);
+      await updateDoc(doc(db, 'flashcards', id), {
+        known: isKnown,
+        lastReviewed: new Date().toISOString(),
+        timesReviewed: updatedCard.timesReviewed
+      });
+    } catch (error) {
+      console.error('Error updating card:', error);
     }
   };
 
   // Function to get the next card based on study mode
   const getNextCard = () => {
     if (!Array.isArray(cards) || cards.length === 0) {
-      console.log("No cards array or empty array");
       return null;
     }
     
@@ -177,10 +239,7 @@ export const FlashcardProvider = ({ children }) => {
         filteredCards = [...cards]; // Make a copy to avoid mutation issues
     }
     
-    console.log(`Filtered cards (${studyMode} mode):`, filteredCards.length);
-    
     if (filteredCards.length === 0) {
-      console.log("No cards after filtering");
       return null;
     }
     
@@ -193,7 +252,9 @@ export const FlashcardProvider = ({ children }) => {
   };
 
   // Function to shuffle cards
-  const shuffleCards = async () => {
+  const shuffleCards = () => {
+    if (!user || cards.length === 0) return;
+    
     // Fisher-Yates shuffle algorithm
     const shuffledCards = [...cards];
     for (let i = shuffledCards.length - 1; i > 0; i--) {
@@ -204,44 +265,45 @@ export const FlashcardProvider = ({ children }) => {
     // Update local state
     setCards(shuffledCards);
     setCurrentCardIndex(0);
-    
-    // No need to update in Firebase as the order is maintained locally
   };
   
   // Function to reset all cards to unknown
   const resetCards = async () => {
-    const resetCardsData = cards.map(card => ({ 
-      ...card, 
-      known: false, 
-      timesReviewed: 0, 
-      lastReviewed: null 
-    }));
+    if (!user || cards.length === 0) return;
     
-    setCards(resetCardsData);
-    setCurrentCardIndex(0);
+    try {
+      setCardsLoading(true);
+      
+      const resetCardsData = cards.map(card => ({ 
+        ...card, 
+        known: false, 
+        timesReviewed: 0, 
+        lastReviewed: null 
+      }));
+      
+      setCards(resetCardsData);
+      setCurrentCardIndex(0);
 
-    // Update in Firestore if user is signed in
-    if (user) {
-      try {
-        await Promise.all(
-          resetCardsData.map(async (card) => {
-            await updateDoc(doc(db, 'flashcards', card.id), {
-              known: false,
-              timesReviewed: 0,
-              lastReviewed: null
-            });
-          })
-        );
-      } catch (error) {
-        console.error('Error resetting cards:', error);
-      }
+      // Update in Firestore
+      await Promise.all(
+        resetCardsData.map(async (card) => {
+          await updateDoc(doc(db, 'flashcards', card.id), {
+            known: false,
+            timesReviewed: 0,
+            lastReviewed: null
+          });
+        })
+      );
+    } catch (error) {
+      console.error('Error resetting cards:', error);
+    } finally {
+      setCardsLoading(false);
     }
   };
 
   // Function to get the current card
   const getCurrentCard = () => {
     if (!Array.isArray(cards) || cards.length === 0) {
-      console.log("No cards array or empty array");
       return null;
     }
     
@@ -258,77 +320,79 @@ export const FlashcardProvider = ({ children }) => {
         filteredCards = [...cards]; // Make a copy to avoid mutation issues
     }
     
-    console.log(`Filtered cards (${studyMode} mode):`, filteredCards.length);
-    
     if (filteredCards.length === 0) {
-      console.log("No cards after filtering");
       return null;
     }
     
     // Make sure currentCardIndex is within bounds
     const safeIndex = Math.min(currentCardIndex, filteredCards.length - 1);
-    console.log(`Current card index: ${safeIndex} of ${filteredCards.length - 1}`);
     
     return filteredCards[safeIndex];
   };
 
-  // User authentication functions
-  const registerUser = async (email, password) => {
-    try {
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      return userCredential.user;
-    } catch (error) {
-      throw error;
-    }
-  };
-
-  const loginUser = async (email, password) => {
-    try {
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      return userCredential.user;
-    } catch (error) {
-      throw error;
-    }
-  };
-
-  const logoutUser = async () => {
-    try {
-      await signOut(auth);
-    } catch (error) {
-      throw error;
-    }
-  };
-
   // Import/Export with Firebase integration
   const importCards = async (importedCards) => {
+    if (!user) return;
+    
     try {
-      if (user) {
-        // Delete existing cards first
-        const q = query(collection(db, 'flashcards'), where('userId', '==', user.uid));
-        const snapshot = await getDocs(q);
-        await Promise.all(snapshot.docs.map(doc => deleteDoc(doc.ref)));
-        
-        // Add imported cards with user ID
-        const cardsWithUserId = importedCards.map(card => ({
-          ...card,
-          userId: user.uid
-        }));
-        
-        const addedCards = await Promise.all(
-          cardsWithUserId.map(async (card) => {
-            const { id, ...cardWithoutId } = card; // Remove existing ID
-            const docRef = await addDoc(collection(db, 'flashcards'), cardWithoutId);
-            return { id: docRef.id, ...cardWithoutId };
-          })
-        );
-        
-        setCards(addedCards);
-      } else {
-        // If not signed in, just update local state
-        setCards(importedCards);
-      }
+      setCardsLoading(true);
+      
+      // Delete existing cards first
+      const q = query(collection(db, 'flashcards'), where('userId', '==', user.uid));
+      const snapshot = await getDocs(q);
+      await Promise.all(snapshot.docs.map(doc => deleteDoc(doc.ref)));
+      
+      // Add imported cards with user ID
+      const cardsWithUserId = importedCards.map(card => ({
+        ...card,
+        userId: user.uid,
+        known: card.known || false,
+        timesReviewed: card.timesReviewed || 0,
+        lastReviewed: card.lastReviewed || null
+      }));
+      
+      const addedCards = await Promise.all(
+        cardsWithUserId.map(async (card) => {
+          const { id, ...cardWithoutId } = card; // Remove existing ID
+          const docRef = await addDoc(collection(db, 'flashcards'), cardWithoutId);
+          return { id: docRef.id, ...cardWithoutId };
+        })
+      );
+      
+      setCards(addedCards);
+      setCurrentCardIndex(0);
     } catch (error) {
-      throw error;
+      console.error('Error importing cards:', error);
+      throw new Error('Failed to import cards. Please try again.');
+    } finally {
+      setCardsLoading(false);
+    }
+  };
+
+  // Load a JSON deck of flashcards
+  const loadDeck = async (deckName) => {
+    if (!user) return;
+    
+    try {
+      setCardsLoading(true);
+      
+      // In a real implementation, you would fetch the deck from a server
+      // For now, we'll simulate loading a new deck
+      
+      const response = await fetch(`/decks/${deckName}.json`);
+      if (!response.ok) {
+        throw new Error(`Failed to load deck: ${response.statusText}`);
+      }
+      
+      const deckData = await response.json();
+      
+      // Import the deck
+      await importCards(deckData);
+    } catch (error) {
+      console.error('Error loading deck:', error);
+      throw new Error('Failed to load flashcard deck. Please try again.');
+    } finally {
+      setCardsLoading(false);
     }
   };
 
@@ -349,7 +413,8 @@ export const FlashcardProvider = ({ children }) => {
       registerUser,
       loginUser,
       logoutUser,
-      importCards
+      importCards,
+      loadDeck
     }}>
       {children}
     </FlashcardContext.Provider>

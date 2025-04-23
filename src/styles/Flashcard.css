@@ -1,21 +1,24 @@
-/* src/styles/Flashcard.css */
+/* src/styles/Flashcard.css - Layout Fix */
 
 .flashcard-container {
     width: 100%;
-    max-width: 600px;
+    max-width: 700px;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 1.5rem;
+    gap: 2rem;
+    padding: 1rem;
+    margin-bottom: 8rem; /* Add bottom margin to ensure controls are visible */
   }
   
   .flashcard {
     position: relative;
     width: 100%;
-    height: 400px; /* Increased height */
-    perspective: 1000px;
+    height: 450px; /* Fixed height */
+    perspective: 1500px;
     cursor: pointer;
     transform-style: preserve-3d;
+    margin-bottom: 2rem; /* Add specific margin to separate card from controls */
   }
   
   .flashcard-front,
@@ -24,21 +27,21 @@
     width: 100%;
     height: 100%;
     backface-visibility: hidden;
-    transition: transform 0.6s;
-    border-radius: 8px;
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
-    padding: 1.5rem;
+    transition: transform 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    border-radius: 16px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+    padding: 2rem;
     display: flex;
     flex-direction: column;
     background-color: white;
-    -webkit-backface-visibility: hidden; /* Safari fix */
+    -webkit-backface-visibility: hidden;
     backface-visibility: hidden;
-    overflow-y: auto; /* Allow scrolling */
+    overflow-y: auto;
   }
   
   .flashcard-front {
     transform: rotateY(0deg);
-    background-color: #3498db;
+    background: linear-gradient(135deg, #3498db, #2c3e50);
     color: white;
     z-index: 2;
   }
@@ -71,7 +74,7 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: flex-start; /* Changed from center to allow proper scrolling */
+    justify-content: center;
     font-size: 1.5rem;
     text-align: center;
     overflow-y: auto;
@@ -82,11 +85,15 @@
   
   .vocab-word {
     font-weight: bold;
-    font-size: 2rem;
-    margin-bottom: 1.5rem;
+    font-size: 2.5rem;
+    margin-bottom: 2rem;
     color: white;
     word-wrap: break-word;
     max-width: 100%;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    
+    /* Ensure "się" stays on the same line */
+    white-space: nowrap;
   }
   
   .example {
@@ -95,12 +102,13 @@
     color: rgba(255, 255, 255, 0.9);
     word-wrap: break-word;
     max-width: 100%;
+    line-height: 1.4;
   }
   
   .translation {
     font-weight: bold;
-    font-size: 1.8rem;
-    margin-bottom: 1rem;
+    font-size: 2rem;
+    margin-bottom: 1.5rem;
     color: #3498db;
     word-wrap: break-word;
     max-width: 100%;
@@ -108,11 +116,12 @@
   
   .translated-example {
     font-style: italic;
-    font-size: 1.3rem;
+    font-size: 1.4rem;
     margin-bottom: 2rem;
     color: #555;
     word-wrap: break-word;
     max-width: 100%;
+    line-height: 1.4;
   }
   
   .grammar-notes {
@@ -120,45 +129,56 @@
     text-align: left;
     color: #666;
     background-color: #f8f9fa;
-    padding: 1rem;
-    border-radius: 6px;
+    padding: 1.5rem;
+    border-radius: 8px;
     border-left: 3px solid #3498db;
     width: 100%;
     word-wrap: break-word;
     overflow-wrap: break-word;
     overflow: auto;
+    line-height: 1.6;
   }
   
   .card-hint {
-    font-size: 0.8rem;
+    font-size: 0.9rem;
     text-align: center;
     opacity: 0.7;
-    margin-top: 1rem;
+    margin-top: 1.5rem;
+    position: absolute;
+    bottom: 1rem;
+    left: 0;
+    right: 0;
   }
   
+  /* Fix for controls positioning */
   .flashcard-controls {
     display: flex;
     width: 100%;
     justify-content: space-between;
-    gap: 0.5rem;
+    gap: 1rem;
     align-items: center;
+    position: relative; /* Ensure controls appear in normal flow */
+    z-index: 10; /* Make sure controls stay above card */
+    margin-top: 1rem; /* Add top margin to separate from card */
   }
   
   .status-buttons {
     display: flex;
-    gap: 0.5rem;
+    gap: 1rem;
     flex: 2;
   }
   
   .control-btn {
-    padding: 0.75rem 1rem;
-    border-radius: 4px;
+    padding: 0.875rem 1.25rem;
+    border-radius: 8px;
     font-weight: 500;
     font-size: 1rem;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
+    border: none;
+    transition: all 0.3s ease;
   }
   
   .status-buttons .control-btn {
@@ -168,22 +188,25 @@
   .control-btn.known {
     background-color: #2ecc71;
     color: white;
+    box-shadow: 0 4px 10px rgba(46, 204, 113, 0.3);
   }
   
   .control-btn.unknown {
     background-color: #e74c3c;
     color: white;
+    box-shadow: 0 4px 10px rgba(231, 76, 60, 0.3);
   }
   
   .control-btn.skip {
     background-color: #f1c40f;
     color: #333;
     flex: 1;
+    box-shadow: 0 4px 10px rgba(241, 196, 15, 0.3);
   }
   
   .control-btn:hover {
     opacity: 0.9;
-    transform: translateY(-2px);
+    transform: translateY(-3px);
   }
   
   .flashcard-status {
@@ -192,11 +215,14 @@
     justify-content: space-between;
     align-items: center;
     font-size: 0.9rem;
+    margin-top: 1rem;
+    position: relative; /* Ensure status appears in normal flow */
+    z-index: 10; /* Make sure status stays above card */
   }
   
   .status-indicator {
     padding: 4px 12px;
-    border-radius: 12px;
+    border-radius: 20px;
     font-weight: 500;
   }
   
@@ -218,16 +244,74 @@
     text-align: center;
     padding: 3rem;
     background-color: white;
-    border-radius: 8px;
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+    border-radius: 16px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
     width: 100%;
   }
   
   .no-cards h2 {
     color: #e74c3c;
-    margin-bottom: 1rem;
+    margin-bottom: 1.5rem;
   }
   
   .no-cards p {
     color: #7f8c8d;
+    margin-bottom: 1rem;
+    font-size: 1.1rem;
+  }
+  
+  /* Animation for card flipping */
+  @keyframes float {
+    0% {
+      transform: translateY(0px);
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+    }
+    50% {
+      transform: translateY(-10px);
+      box-shadow: 0 15px 35px rgba(0, 0, 0, 0.15);
+    }
+    100% {
+      transform: translateY(0px);
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+    }
+  }
+  
+  .flashcard:hover:not(.flipped) {
+    animation: float 3s ease-in-out infinite;
+  }
+  
+  /* Media queries for better responsiveness */
+  @media (max-width: 768px) {
+    .flashcard {
+      height: 400px;
+    }
+    
+    .vocab-word {
+      font-size: 2rem;
+    }
+    
+    .example {
+      font-size: 1.3rem;
+    }
+    
+    .translation {
+      font-size: 1.7rem;
+    }
+    
+    .flashcard-container {
+      margin-bottom: 6rem;
+    }
+    
+    .flashcard-controls {
+      flex-direction: column;
+    }
+    
+    .status-buttons {
+      width: 100%;
+    }
+    
+    .control-btn.skip {
+      width: 100%;
+      margin-top: 0.5rem;
+    }
   }
