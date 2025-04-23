@@ -1,6 +1,10 @@
+// src/index.js
+
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import './index.css';
+import './styles/App.css';
+import './styles/Flashcard.css';
+import './styles/Stats.css';
 import App from './App';
 import reportWebVitals from './reportWebVitals';
 

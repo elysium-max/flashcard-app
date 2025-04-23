@@ -1,24 +1,43 @@
-import logo from './logo.svg';
-import './App.css';
+// src/App.js
+
+import React, { useEffect } from 'react';
+import { FlashcardProvider } from './context/FlashcardContext';
+import Flashcard from './components/Flashcard';
+import Stats from './components/Stats';
+import StudyMode from './components/StudyMode';
+import './styles/App.css';
 
 function App() {
+  // For development, always clear localStorage on load to avoid stale data
+  useEffect(() => {
+    console.log("Clearing flashcards data for fresh start");
+    localStorage.removeItem('flashcards');
+    localStorage.removeItem('app_initialized');
+  }, []);
+
   return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.js</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
-    </div>
+    <FlashcardProvider>
+      <div className="app-container">
+        <header className="app-header">
+          <h1>Language Flashcards</h1>
+        </header>
+        
+        <main className="app-main">
+          <div className="app-sidebar">
+            <Stats />
+            <StudyMode />
+          </div>
+          
+          <div className="app-content">
+            <Flashcard />
+          </div>
+        </main>
+        
+        <footer className="app-footer">
+          <p>Language Learning Flashcard App</p>
+        </footer>
+      </div>
+    </FlashcardProvider>
   );
 }
 
