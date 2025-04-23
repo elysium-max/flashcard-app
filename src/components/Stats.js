@@ -6,7 +6,7 @@ import '../styles/Stats.css';
 import { FaCheck, FaTimes, FaSync, FaDownload, FaUpload } from 'react-icons/fa';
 
 const Stats = () => {
-  const { stats, resetCards, cards, setCards } = useContext(FlashcardContext);
+  const { stats, resetCards, cards, importCards } = useContext(FlashcardContext);
   const fileInputRef = useRef(null);
   
   // Calculate percentage of known cards
@@ -49,7 +49,7 @@ const Stats = () => {
     if (file) {
       const reader = new FileReader();
       
-      reader.onload = (e) => {
+      reader.onload = async (e) => {
         try {
           const importedData = JSON.parse(e.target.result);
           
@@ -57,12 +57,11 @@ const Stats = () => {
           if (Array.isArray(importedData) && importedData.length > 0) {
             // Check if first item has expected properties
             const firstCard = importedData[0];
-            if (firstCard.id !== undefined && 
-                firstCard.front !== undefined && 
+            if (firstCard.front !== undefined && 
                 firstCard.back !== undefined) {
               
-              // Update the cards state with imported data
-              setCards(importedData);
+              // Use the importCards function which handles Firebase
+              await importCards(importedData);
               
               // Clear the file input
               if (fileInputRef.current) {

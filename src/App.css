@@ -152,3 +152,37 @@ button:disabled {
   background-color: #8e44ad;
   transform: translateY(-2px);
 }
+
+.loading-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  width: 100%;
+  background-color: #f5f7fa;
+}
+
+.loading {
+  font-size: 1.5rem;
+  color: #3498db;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.loading::after {
+  content: '';
+  width: 2rem;
+  height: 2rem;
+  border: 3px solid #e1e5eb;
+  border-radius: 50%;
+  border-top-color: #3498db;
+  animation: loading-spinner 1s ease infinite;
+}
+
+@keyframes loading-spinner {
+  to {
+    transform: rotate(360deg);
+  }
+}
