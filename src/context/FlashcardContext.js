@@ -1,4 +1,4 @@
-// src/context/FlashcardContext.js
+// src/context/FlashcardContext.js - Simplified version
 
 import React, { createContext, useState, useEffect, useCallback } from 'react';
 import { auth, db } from '../utils/firebase';
@@ -45,9 +45,6 @@ export const FlashcardProvider = ({ children }) => {
   const [syncStatus, setSyncStatus] = useState('idle'); // 'idle', 'syncing', 'error'
   const [lastSyncTime, setLastSyncTime] = useState(null);
 
-  // Debug flag to help track issues
-  const [debug, setDebug] = useState(false);
-
   // Combine loading states for the app
   const loading = authLoading || cardsLoading;
 
@@ -79,9 +76,6 @@ export const FlashcardProvider = ({ children }) => {
       );
       
       const snapshot = await getDocs(q);
-      
-      // Log for debugging
-      console.log(`Firestore query returned ${snapshot.docs.length} documents`);
       
       // Process the results directly without trying to order them in Firestore
       const flashcardsData = snapshot.docs.map(doc => {
@@ -131,7 +125,7 @@ export const FlashcardProvider = ({ children }) => {
     } finally {
       setCardsLoading(false);
     }
-  }, [user, debug]);
+  }, [user]);
 
   useEffect(() => {
     if (user) {
@@ -412,7 +406,7 @@ export const FlashcardProvider = ({ children }) => {
     return filteredCards[safeIndex];
   }, [cards, currentCardIndex, studyMode]);
 
-  // Completely revamped clearCards function for better reliability
+  // Function to clear all cards
   const clearCards = async () => {
     if (!user) {
       console.error("No user logged in - cannot clear cards");
@@ -481,7 +475,7 @@ export const FlashcardProvider = ({ children }) => {
     }
   };
 
-  // Completely revamped import function for more reliability
+  // Function to import cards
   const importCards = async (importedCards) => {
     if (!user) {
       console.error("Import failed: No user logged in");
@@ -696,12 +690,6 @@ export const FlashcardProvider = ({ children }) => {
     }
   };
 
-  // Toggle debug mode
-  const toggleDebug = () => {
-    setDebug(!debug);
-    console.log(`Debug mode ${!debug ? 'enabled' : 'disabled'}`);
-  };
-
   return (
     <FlashcardContext.Provider value={{
       cards,
@@ -724,9 +712,7 @@ export const FlashcardProvider = ({ children }) => {
       refreshCards,
       syncStatus,
       setSyncStatus,
-      lastSyncTime,
-      toggleDebug,
-      debug
+      lastSyncTime
     }}>
       {children}
     </FlashcardContext.Provider>

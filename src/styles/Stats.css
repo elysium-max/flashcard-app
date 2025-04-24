@@ -1,4 +1,4 @@
-/* src/styles/Stats.css - Complete updated version */
+/* src/styles/Stats.css - Fixed version */
 
 .stats-container {
     background-color: white;
@@ -94,88 +94,6 @@
   .refresh-btn:disabled {
     color: #95a5a6;
     cursor: not-allowed;
-  }
-  
-  /* Debug indicator */
-  .debug-indicator {
-    background-color: rgba(155, 89, 182, 0.2);
-    color: #9b59b6;
-    padding: 2px 6px;
-    border-radius: 4px;
-    font-size: 0.75rem;
-    font-weight: bold;
-    margin-left: 8px;
-  }
-  
-  /* Debug buttons container */
-  .debug-buttons {
-    display: flex;
-    gap: 1rem;
-    margin-top: 1rem;
-    width: 100%;
-  }
-  
-  .debug-btn, .reload-btn {
-    flex: 1;
-    padding: 0.75rem;
-    border-radius: 8px;
-    font-weight: 500;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    transition: all 0.3s ease;
-    cursor: pointer;
-    font-size: 0.9rem;
-    border: none;
-  }
-  
-  .debug-btn {
-    background-color: #34495e;
-    color: white;
-  }
-  
-  .debug-btn:hover:not(:disabled) {
-    background-color: #2c3e50;
-    transform: translateY(-2px);
-  }
-  
-  .reload-btn {
-    background-color: #95a5a6;
-    color: white;
-  }
-  
-  .reload-btn:hover:not(:disabled) {
-    background-color: #7f8c8d;
-    transform: translateY(-2px);
-  }
-  
-  /* Countdown for auto-reload */
-  .countdown {
-    margin-top: 1rem;
-    padding: 0.75rem;
-    background-color: #f39c12;
-    color: white;
-    border-radius: 8px;
-    text-align: center;
-    font-weight: 500;
-    animation: pulse 1s infinite alternate;
-  }
-  
-  .countdown button {
-    background: rgba(255, 255, 255, 0.3);
-    color: white;
-    border: none;
-    padding: 4px 8px;
-    border-radius: 4px;
-    margin-left: 8px;
-    cursor: pointer;
-    font-size: 0.85rem;
-    transition: all 0.2s ease;
-  }
-  
-  .countdown button:hover {
-    background: rgba(255, 255, 255, 0.5);
   }
   
   .progress-bar {
@@ -288,7 +206,7 @@
     cursor: pointer;
   }
   
-  .reset-btn:disabled, .clear-btn:disabled, .export-btn:disabled, .import-btn:disabled, .format-btn:disabled {
+  .reset-btn:disabled, .clear-btn:disabled, .export-btn:disabled, .import-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
     transform: none !important;
@@ -357,65 +275,6 @@
     box-shadow: 0 4px 10px rgba(46, 204, 113, 0.3);
   }
   
-  /* Format button with magic effects */
-  .format-btn {
-    width: 100%;
-    padding: 0.875rem;
-    margin-top: 0.25rem;
-    color: white;
-    background: linear-gradient(135deg, #9b59b6, #8e44ad);
-    border-radius: 8px;
-    font-weight: 500;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    transition: all 0.3s ease;
-    border: none;
-    cursor: pointer;
-    position: relative;
-    overflow: hidden;
-  }
-  
-  .format-btn:hover:not(:disabled) {
-    background: linear-gradient(135deg, #8e44ad, #6c3483);
-    transform: translateY(-2px);
-    box-shadow: 0 6px 15px rgba(155, 89, 182, 0.35);
-  }
-  
-  /* Add sparkle effect to the Magic Fix button */
-  .format-btn::before {
-    content: "";
-    position: absolute;
-    top: -50%;
-    left: -50%;
-    width: 200%;
-    height: 200%;
-    background: linear-gradient(
-      to bottom right,
-      rgba(255, 255, 255, 0) 0%,
-      rgba(255, 255, 255, 0.1) 50%,
-      rgba(255, 255, 255, 0) 100%
-    );
-    transform: rotate(45deg);
-    animation: shimmer 3s infinite;
-    z-index: 1;
-  }
-  
-  .format-btn > * {
-    position: relative;
-    z-index: 2;
-  }
-  
-  @keyframes shimmer {
-    0% {
-      transform: translateX(-100%) rotate(45deg);
-    }
-    100% {
-      transform: translateX(100%) rotate(45deg);
-    }
-  }
-  
   /* Card status indicator */
   .card-status {
     margin-top: 0.5rem;
@@ -470,6 +329,34 @@
     animation: spin 1s linear infinite;
   }
   
+  /* Countdown for auto-reload */
+  .countdown {
+    margin-top: 1rem;
+    padding: 0.75rem;
+    background-color: #f39c12;
+    color: white;
+    border-radius: 8px;
+    text-align: center;
+    font-weight: 500;
+    animation: pulse 1s infinite alternate;
+  }
+  
+  .countdown button {
+    background: rgba(255, 255, 255, 0.3);
+    color: white;
+    border: none;
+    padding: 4px 8px;
+    border-radius: 4px;
+    margin-left: 8px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: all 0.2s ease;
+  }
+  
+  .countdown button:hover {
+    background: rgba(255, 255, 255, 0.5);
+  }
+  
   @keyframes spin {
     to {
       transform: rotate(360deg);
@@ -494,98 +381,5 @@
       flex-direction: column;
       align-items: flex-start;
       gap: 8px;
-    }
-    
-    .debug-buttons {
-      flex-direction: column;
-    }
-  }
-    
-/* Add these styles to your src/styles/Stats.css file */
-
-/* Format progress container */
-.format-progress {
-    margin: 1.5rem 0;
-    padding: 1.25rem;
-    background-color: #f8f9fa;
-    border-radius: 10px;
-    border: 1px solid #e9ecef;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
-  }
-  
-  .format-progress h3 {
-    margin-top: 0;
-    margin-bottom: 1rem;
-    color: #3498db;
-    font-size: 1.2rem;
-    border-bottom: 1px solid #e9ecef;
-    padding-bottom: 0.5rem;
-  }
-  
-  .progress-info {
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-  }
-  
-  .progress-numbers {
-    display: flex;
-    justify-content: space-between;
-    font-size: 0.9rem;
-    color: #495057;
-  }
-  
-  .format-progress-bar {
-    height: 20px;
-    width: 100%;
-    background-color: #e9ecef;
-    border-radius: 10px;
-    overflow: hidden;
-    margin: 0.5rem 0;
-  }
-  
-  .format-progress-bar .progress-fill {
-    background: linear-gradient(90deg, #9b59b6, #8e44ad);
-  }
-  
-  .progress-message {
-    font-size: 0.95rem;
-    color: #495057;
-    padding: 0.5rem;
-    background-color: #f1f3f5;
-    border-radius: 4px;
-    border-left: 3px solid #3498db;
-  }
-  
-  .cancel-btn {
-    align-self: center;
-    padding: 0.5rem 1rem;
-    background-color: #e74c3c;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    font-size: 0.9rem;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    cursor: pointer;
-    transition: all 0.2s ease;
-  }
-  
-  .cancel-btn:hover {
-    background-color: #c0392b;
-  }
-  
-  /* Spinner animation */
-  .spinning {
-    animation: spin 1.2s linear infinite;
-  }
-  
-  @keyframes spin {
-    0% {
-      transform: rotate(0deg);
-    }
-    100% {
-      transform: rotate(360deg);
     }
   }

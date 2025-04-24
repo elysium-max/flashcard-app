@@ -1,8 +1,8 @@
-// src/components/StudyMode.js
+// src/components/StudyMode.js - Simplified version
 
 import React, { useContext } from 'react';
 import { FlashcardContext } from '../context/FlashcardContext';
-import { FaLayerGroup, FaCheck, FaTimes, FaRandom, FaShuffle, FaSync } from 'react-icons/fa';
+import { FaLayerGroup, FaCheck, FaTimes, FaSync } from 'react-icons/fa';
 import '../styles/App.css';
 
 const StudyMode = () => {

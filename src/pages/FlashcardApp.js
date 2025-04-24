@@ -1,4 +1,4 @@
-// src/pages/FlashcardApp.js
+// src/pages/FlashcardApp.js - Simplified version
 
 import React, { useContext } from 'react';
 import { Routes, Route, useNavigate } from 'react-router-dom';
@@ -48,7 +48,6 @@ const FlashcardApp = () => {
         <div className="app-content">
           <Routes>
             <Route path="/" element={<Flashcard />} />
-            {/* You can add more routes here for different sections of your app */}
           </Routes>
         </div>
       </main>
