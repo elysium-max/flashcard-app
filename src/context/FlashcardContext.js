@@ -13,9 +13,8 @@ import {
   where,
   writeBatch,
   serverTimestamp,
-  orderBy,
-  limit,
-  getDoc
+  getDoc,
+  orderBy
 } from 'firebase/firestore';
 import { 
   createUserWithEmailAndPassword, 
@@ -47,6 +46,9 @@ export const FlashcardProvider = ({ children }) => {
   const [syncStatus, setSyncStatus] = useState('idle'); // 'idle', 'syncing', 'error'
   const [lastSyncTime, setLastSyncTime] = useState(null);
 
+  // Debug flag to help track issues
+  const [debug, setDebug] = useState(false);
+
   // Combine loading states for the app
   const loading = authLoading || cardsLoading;
 
@@ -61,7 +63,6 @@ export const FlashcardProvider = ({ children }) => {
   }, []);
 
   // Load flashcards from Firestore if user is authenticated
-  // This function uses a more reliable approach to fetch data
   const loadUserCards = useCallback(async () => {
     if (!user) {
       setCards([]);
@@ -72,7 +73,7 @@ export const FlashcardProvider = ({ children }) => {
       setCardsLoading(true);
       setSyncStatus('syncing');
       
-      // Get user's flashcards, ordered by creation time to ensure consistent ordering
+      // This query should work now that you've created the composite index
       const q = query(
         collection(db, 'flashcards'), 
         where('userId', '==', user.uid),
@@ -81,14 +82,70 @@ export const FlashcardProvider = ({ children }) => {
       
       const snapshot = await getDocs(q);
       
-      // Map docs to cards
-      const flashcardsData = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        // Ensure timestamp fields are properly serialized
-        lastReviewed: doc.data().lastReviewed ? doc.data().lastReviewed.toDate().toISOString() : null,
-        createdAt: doc.data().createdAt ? doc.data().createdAt.toDate().toISOString() : new Date().toISOString()
-      }));
+      // Log for debugging
+      console.log(`Firestore query returned ${snapshot.docs.length} documents`);
+      
+      if (snapshot.docs.length === 0) {
+        // Try a simpler query to see if there are any cards at all
+        const simpleQ = query(
+          collection(db, 'flashcards'), 
+          where('userId', '==', user.uid)
+        );
+        
+        const simpleSnapshot = await getDocs(simpleQ);
+        console.log(`Simple query returned ${simpleSnapshot.docs.length} documents`);
+        
+        if (simpleSnapshot.docs.length > 0) {
+          console.log("Cards exist but couldn't be loaded with ordered query. Using simple query results.");
+          const simpleData = simpleSnapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data(),
+            // Handle timestamp fields
+            lastReviewed: doc.data().lastReviewed ? 
+              (typeof doc.data().lastReviewed.toDate === 'function' ? 
+                doc.data().lastReviewed.toDate().toISOString() : doc.data().lastReviewed) : 
+              null,
+            createdAt: doc.data().createdAt ? 
+              (typeof doc.data().createdAt.toDate === 'function' ? 
+                doc.data().createdAt.toDate().toISOString() : doc.data().createdAt) : 
+              new Date().toISOString()
+          }));
+          
+          setCards(simpleData);
+          setLastSyncTime(new Date().toISOString());
+          setSyncStatus('idle');
+          setCardsLoading(false);
+          return;
+        }
+      }
+      
+      // Map docs to cards with careful timestamp handling
+      const flashcardsData = snapshot.docs.map(doc => {
+        const data = doc.data();
+        
+        // Debug logging for a sample card
+        if (debug && snapshot.docs.length > 0 && doc === snapshot.docs[0]) {
+          console.log("Sample card data:", data);
+        }
+        
+        return {
+          id: doc.id,
+          ...data,
+          // Ensure timestamp fields are properly serialized
+          lastReviewed: data.lastReviewed ? 
+            (typeof data.lastReviewed.toDate === 'function' ? 
+              data.lastReviewed.toDate().toISOString() : data.lastReviewed) : 
+            null,
+          createdAt: data.createdAt ? 
+            (typeof data.createdAt.toDate === 'function' ? 
+              data.createdAt.toDate().toISOString() : data.createdAt) : 
+            new Date().toISOString(),
+          lastModified: data.lastModified ?
+            (typeof data.lastModified.toDate === 'function' ?
+              data.lastModified.toDate().toISOString() : data.lastModified) :
+            null
+        };
+      });
       
       console.log(`Loaded ${flashcardsData.length} cards from Firestore`);
       
@@ -102,10 +159,43 @@ export const FlashcardProvider = ({ children }) => {
     } catch (error) {
       console.error("Error loading flashcards:", error);
       setSyncStatus('error');
+      
+      // Try a simpler approach as a fallback
+      try {
+        const simpleQ = query(
+          collection(db, 'flashcards'), 
+          where('userId', '==', user.uid)
+        );
+        
+        const simpleSnapshot = await getDocs(simpleQ);
+        console.log(`Fallback query returned ${simpleSnapshot.docs.length} documents`);
+        
+        if (simpleSnapshot.docs.length > 0) {
+          const simpleData = simpleSnapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data(),
+            // Handle timestamp fields consistently
+            lastReviewed: doc.data().lastReviewed ? 
+              (typeof doc.data().lastReviewed.toDate === 'function' ? 
+                doc.data().lastReviewed.toDate().toISOString() : doc.data().lastReviewed) : 
+              null,
+            createdAt: doc.data().createdAt ? 
+              (typeof doc.data().createdAt.toDate === 'function' ? 
+                doc.data().createdAt.toDate().toISOString() : doc.data().createdAt) : 
+              new Date().toISOString()
+          }));
+          
+          setCards(simpleData);
+          setLastSyncTime(new Date().toISOString());
+          setSyncStatus('idle');
+        }
+      } catch (fallbackError) {
+        console.error("Fallback loading also failed:", fallbackError);
+      }
     } finally {
       setCardsLoading(false);
     }
-  }, [user]);
+  }, [user, debug]);
 
   useEffect(() => {
     if (user) {
@@ -467,11 +557,6 @@ export const FlashcardProvider = ({ children }) => {
       setCardsLoading(true);
       setSyncStatus('syncing');
       
-      // Instead of clearing first (which could lead to data loss), we'll use a better approach:
-      // 1. Process all import cards to ensure they're valid
-      // 2. Create unique content identifiers to avoid duplicates
-      // 3. Add each card with proper metadata
-      
       // First, deduplicate cards within the import set
       const uniqueImportMap = new Map();
       let dupeCount = 0;
@@ -509,7 +594,7 @@ export const FlashcardProvider = ({ children }) => {
       const existingContentMap = new Map();
       snapshot.docs.forEach(doc => {
         const data = doc.data();
-        const contentKey = `${data.front.trim()}::${data.back.trim()}`;
+        const contentKey = `${data.front?.trim() || ''}::${data.back?.trim() || ''}`;
         existingContentMap.set(contentKey, doc.id);
       });
       
@@ -549,16 +634,18 @@ export const FlashcardProvider = ({ children }) => {
       console.log(`Found ${newCards.length} new cards to add`);
       console.log(`Found ${cardsToUpdate.length} existing cards to update`);
       
+      // Arrays to track successfully processed cards
+      const addedCards = [];
+      const updatedCards = [];
+      
       // Process in batches for better reliability
       const BATCH_SIZE = 450;
       
       // Add new cards first
-      const addedCards = [];
       if (newCards.length > 0) {
         const addBatchCount = Math.ceil(newCards.length / BATCH_SIZE);
         
         for (let i = 0; i < addBatchCount; i++) {
-          const batch = writeBatch(db);
           const start = i * BATCH_SIZE;
           const end = Math.min(start + BATCH_SIZE, newCards.length);
           
@@ -570,26 +657,28 @@ export const FlashcardProvider = ({ children }) => {
             // For new cards, we need individual addDoc calls to get IDs
             batchPromises.push(
               addDoc(collection(db, 'flashcards'), newCards[j])
-                .then(docRef => ({
-                  id: docRef.id,
-                  ...newCards[j],
-                  // Convert timestamps to ISO strings for local state
-                  createdAt: new Date().toISOString(),
-                  lastModified: new Date().toISOString(),
-                  lastReviewed: newCards[j].lastReviewed
-                }))
+                .then(docRef => {
+                  // Return a properly formatted card for our local state
+                  return {
+                    id: docRef.id,
+                    ...newCards[j],
+                    // Convert timestamps to ISO strings for local state
+                    createdAt: new Date().toISOString(),
+                    lastModified: new Date().toISOString(),
+                    lastReviewed: newCards[j].lastReviewed
+                  };
+                })
             );
           }
           
           const batchResults = await Promise.all(batchPromises);
-          addedCards.push(...batchResults);
+          addedCards.push(...batchResults.filter(card => card !== null));
           
           console.log(`Added ${batchResults.length} cards in batch ${i + 1}`);
         }
       }
       
       // Then update existing cards if needed
-      const updatedCards = [];
       if (cardsToUpdate.length > 0) {
         const updateBatchCount = Math.ceil(cardsToUpdate.length / BATCH_SIZE);
         
@@ -600,6 +689,7 @@ export const FlashcardProvider = ({ children }) => {
           
           console.log(`Updating batch ${i + 1}/${updateBatchCount} (cards ${start} to ${end - 1})`);
           
+          const batchUpdates = [];
           for (let j = start; j < end; j++) {
             const card = cardsToUpdate[j];
             const { id, ...cardData } = card;
@@ -608,27 +698,32 @@ export const FlashcardProvider = ({ children }) => {
             batch.update(cardRef, cardData);
             
             // Add to our updated cards with proper timestamp handling
-            updatedCards.push({
+            batchUpdates.push({
               ...card,
               lastModified: new Date().toISOString()
             });
           }
           
           await batch.commit();
+          updatedCards.push(...batchUpdates);
+          
           console.log(`Updated ${end - start} cards in batch ${i + 1}`);
         }
       }
       
-      // Now merge everything for our local state
+      // Now update our local state with all the processed cards
       const allProcessedCards = [...addedCards, ...updatedCards];
+      console.log(`Processed ${allProcessedCards.length} cards total.`);
       
-      // Reload to ensure consistency
-      await loadUserCards();
+      // IMPORTANT: Set the cards directly in state instead of calling loadUserCards()
+      // This ensures we have the cards in memory even if Firestore queries are having issues
+      setCards(allProcessedCards);
+      setCurrentCardIndex(0);
       
-      console.log(`Import complete. Processed ${allProcessedCards.length} cards total.`);
       setLastSyncTime(new Date().toISOString());
       setSyncStatus('idle');
       
+      console.log(`Import complete. Processed ${allProcessedCards.length} cards total.`);
       return allProcessedCards.length;
     } catch (error) {
       console.error('Error importing cards:', error);
@@ -641,7 +736,7 @@ export const FlashcardProvider = ({ children }) => {
 
   // Force a refresh of cards from Firestore
   const refreshCards = async () => {
-    if (!user) return;
+    if (!user) return false;
     
     try {
       console.log("Forcing refresh of cards from Firestore");
@@ -651,6 +746,12 @@ export const FlashcardProvider = ({ children }) => {
       console.error("Error refreshing cards:", error);
       return false;
     }
+  };
+
+  // Toggle debug mode
+  const toggleDebug = () => {
+    setDebug(!debug);
+    console.log(`Debug mode ${!debug ? 'enabled' : 'disabled'}`);
   };
 
   return (
@@ -674,7 +775,9 @@ export const FlashcardProvider = ({ children }) => {
       clearCards,
       refreshCards,
       syncStatus,
-      lastSyncTime
+      lastSyncTime,
+      toggleDebug,
+      debug
     }}>
       {children}
     </FlashcardContext.Provider>

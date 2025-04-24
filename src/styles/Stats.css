@@ -1,4 +1,4 @@
-/* src/styles/Stats.css - Enhanced with sync status indicators */
+/* src/styles/Stats.css - Enhanced with debug and card status indicators */
 
 .stats-container {
     background-color: white;
@@ -21,7 +21,7 @@
     padding-bottom: 0.75rem;
   }
   
-  /* New sync status indicator */
+  /* Sync status indicator */
   .sync-status-bar {
     display: flex;
     justify-content: space-between;
@@ -94,6 +94,39 @@
   .refresh-btn:disabled {
     color: #95a5a6;
     cursor: not-allowed;
+  }
+  
+  /* Debug indicator */
+  .debug-indicator {
+    background-color: rgba(155, 89, 182, 0.2);
+    color: #9b59b6;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: bold;
+    margin-left: 8px;
+  }
+  
+  .debug-btn {
+    margin-top: 1rem;
+    padding: 0.75rem;
+    background-color: #34495e;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: all 0.3s ease;
+    cursor: pointer;
+    font-size: 0.9rem;
+  }
+  
+  .debug-btn:hover {
+    background-color: #2c3e50;
+    transform: translateY(-2px);
   }
   
   .progress-bar {
@@ -273,6 +306,14 @@
     background-color: #27ae60;
     transform: translateY(-2px);
     box-shadow: 0 4px 10px rgba(46, 204, 113, 0.3);
+  }
+  
+  /* Card status indicator */
+  .card-status {
+    margin-top: 0.5rem;
+    text-align: center;
+    color: #7f8c8d;
+    font-size: 0.9rem;
   }
   
   .import-status {

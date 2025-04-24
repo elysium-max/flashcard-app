@@ -3,7 +3,7 @@
 import React, { useContext, useRef, useState, useEffect } from 'react';
 import { FlashcardContext } from '../context/FlashcardContext';
 import '../styles/Stats.css';
-import { FaCheck, FaTimes, FaSync, FaDownload, FaUpload, FaInfoCircle, FaRedo } from 'react-icons/fa';
+import { FaCheck, FaTimes, FaSync, FaDownload, FaUpload, FaInfoCircle, FaRedo, FaBug } from 'react-icons/fa';
 
 const Stats = () => {
   const { 
@@ -14,7 +14,9 @@ const Stats = () => {
     clearCards, 
     refreshCards,
     syncStatus,
-    lastSyncTime
+    lastSyncTime,
+    toggleDebug,
+    debug
   } = useContext(FlashcardContext);
   
   const fileInputRef = useRef(null);
@@ -137,7 +139,13 @@ const Stats = () => {
         fileInputRef.current.value = '';
       }
       
-      setImportStatus(`Successfully imported ${addedCount} flashcards!`);
+      // Verify cards were actually imported by checking the cards state
+      if (Array.isArray(cards) && cards.length > 0) {
+        setImportStatus(`Successfully imported ${addedCount} flashcards!`);
+      } else {
+        // Fallback - the import seemed to work but we don't see the cards
+        setImportStatus(`Import processed ${addedCount} cards but they may not have loaded properly. Try refreshing.`);
+      }
     } catch (error) {
       console.error('Import error:', error);
       setImportStatus(`Import failed: ${error.message}`);
@@ -185,6 +193,12 @@ const Stats = () => {
     }
   };
   
+  // Handle debugging toggle
+  const handleToggleDebug = () => {
+    toggleDebug();
+    setImportStatus(debug ? 'Debug mode disabled' : 'Debug mode enabled');
+  };
+  
   // Format the sync time for display
   const formatSyncTime = (timestamp) => {
     if (!timestamp) return 'Never';
@@ -202,6 +216,15 @@ const Stats = () => {
     if (fileInputRef.current) {
       fileInputRef.current.click();
     }
+  };
+  
+  // Display card count and details
+  const cardDetails = () => {
+    if (!Array.isArray(cards) || cards.length === 0) {
+      return "No cards loaded";
+    }
+    
+    return `${cards.length} cards in memory`;
   };
   
   return (
@@ -222,6 +245,7 @@ const Stats = () => {
           >
             <FaRedo />
           </button>
+          {debug && <span className="debug-indicator">DEBUG ON</span>}
         </div>
       </div>
       
@@ -293,6 +317,18 @@ const Stats = () => {
             <FaUpload /> Import Data
           </button>
         </div>
+        
+        <button 
+          className="debug-btn" 
+          onClick={handleToggleDebug}
+          title="Toggle debug mode"
+        >
+          <FaBug /> {debug ? 'Disable Debug' : 'Enable Debug'}
+        </button>
+      </div>
+      
+      <div className="card-status">
+        {cardDetails()}
       </div>
       
       {importStatus && (
