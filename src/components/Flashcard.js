@@ -87,7 +87,7 @@ const Flashcard = () => {
     }
   };
   
-  // Format the back side of the card with improved error handling
+  // Format the back side of the card with improved error handling for separating example sentences
   const formatBackContent = (backText) => {
     if (!backText) return <div className="card-content"><div className="translation">No content</div></div>;
     
@@ -112,84 +112,91 @@ const Flashcard = () => {
       
       // For unformatted content, use regular expressions to separate sections
       
-      // Step 1: Split the text by periods that are followed by space and an uppercase letter
-      // This helps separate the translation from example sentence
-      const segments = backText.split(/\.\s+(?=[A-Z])/);
+      // Step 1: Look for sentence patterns with "I" which are common in examples
+      const iStatementPattern = /^([^.!?;]+?(?:;[^.!?;]+?)*)\s+I\s+(.+)$/i;
+      const iStatementMatch = backText.match(iStatementPattern);
       
-      // The first segment should be the translation (and possibly some grammar hints)
-      let translation = segments[0];
-      
-      // If there's no period separator, try to find the first full sentence
-      if (segments.length === 1) {
-        // Try to find the first sentence by looking for common patterns
-        const sentenceMatch = backText.match(/^(to [^.]+?)(?:\s+([A-Z][^.]+\.))/);
-        if (sentenceMatch) {
-          translation = sentenceMatch[1];
-          segments[1] = sentenceMatch[2]; // Add the example sentence
+      if (iStatementMatch) {
+        const translation = iStatementMatch[1].trim();
+        const example = "I " + iStatementMatch[2].trim();
+        
+        // Find grammar notes
+        const grammarMarkers = ['Conj.', 'Notes:', 'Note:', 'Grammar:', 'Gram.'];
+        let grammarNotes = '';
+        
+        for (const marker of grammarMarkers) {
+          if (example.includes(marker)) {
+            const grammarStart = example.indexOf(marker);
+            grammarNotes = example.substring(grammarStart).trim();
+            example = example.substring(0, grammarStart).trim();
+            break;
+          }
         }
+        
+        return (
+          <div className="card-content">
+            <div className="translation">{translation}</div>
+            {example && <div className="translated-example">{example}</div>}
+            {grammarNotes && <div className="grammar-notes">{grammarNotes}</div>}
+          </div>
+        );
       }
       
-      // Step 2: Find grammar notes
+      // Step 2: Look for sentences after semicolons or parentheses
+      const semicolonOrParensPattern = /^([^.!?]+(?:\([^)]+\))?(?:;[^.!?;]+)*)\s+([A-Z][^.!?;]+.*)$/;
+      const semicolonMatch = backText.match(semicolonOrParensPattern);
+      
+      if (semicolonMatch) {
+        const translation = semicolonMatch[1].trim();
+        let example = semicolonMatch[2].trim();
+        
+        // Check if example contains grammar notes
+        const grammarMarkers = ['Conj.', 'Notes:', 'Note:', 'Grammar:', 'Gram.'];
+        let grammarNotes = '';
+        
+        for (const marker of grammarMarkers) {
+          if (example.includes(marker)) {
+            const grammarStart = example.indexOf(marker);
+            grammarNotes = example.substring(grammarStart).trim();
+            example = example.substring(0, grammarStart).trim();
+            break;
+          }
+        }
+        
+        return (
+          <div className="card-content">
+            <div className="translation">{translation}</div>
+            {example && <div className="translated-example">{example}</div>}
+            {grammarNotes && <div className="grammar-notes">{grammarNotes}</div>}
+          </div>
+        );
+      }
+      
+      // Step 3: If no clear pattern match, fall back to grammar separation only
       const grammarMarkers = ['Conj.', 'Notes:', 'Note:', 'Grammar:', 'Gram.'];
       let grammarStart = -1;
+      let grammarMarker = '';
       
       for (const marker of grammarMarkers) {
         const index = backText.indexOf(marker);
         if (index !== -1 && (grammarStart === -1 || index < grammarStart)) {
           grammarStart = index;
+          grammarMarker = marker;
         }
       }
       
       // Extract grammar notes if available
+      let translation = backText;
       let grammarNotes = '';
+      
       if (grammarStart !== -1) {
         grammarNotes = backText.substring(grammarStart).trim();
-        
-        // Make sure grammar notes don't include parts of the translation/example
-        if (translation.includes(grammarNotes.substring(0, 20))) {
-          translation = translation.replace(grammarNotes, '').trim();
-        }
-      }
-      
-      // Extract example sentence (everything between translation and grammar notes)
-      let example = '';
-      if (segments.length > 1) {
-        // Join all segments except first (translation) into the example
-        example = segments.slice(1).join('. ');
-        
-        // If there are grammar notes, trim example to not include them
-        if (grammarStart !== -1) {
-          example = example.substring(0, example.indexOf(grammarNotes.substring(0, 20)));
-        }
-        
-        // Clean up any trailing/leading spaces or periods
-        example = example.replace(/^\s*\.?\s*|\s*\.?\s*$/g, '');
-        
-        // Add period if there isn't one
-        if (!example.endsWith('.') && example.length > 0) {
-          example += '.';
-        }
-      }
-      
-      // Clean up translation (remove any "Conj." text that got included)
-      grammarMarkers.forEach(marker => {
-        if (translation.includes(marker)) {
-          translation = translation.substring(0, translation.indexOf(marker)).trim();
-        }
-      });
-      
-      // Trim any trailing periods from translation
-      translation = translation.replace(/\.\s*$/, '');
-      
-      // Add period if needed
-      if (!translation.endsWith('.') && !translation.endsWith('!') && !translation.endsWith('?')) {
-        translation += '.';
+        translation = backText.substring(0, grammarStart).trim();
       }
       
       return (
         <div className="card-content">
           <div className="translation">{translation}</div>
-          {example && <div className="translated-example">{example}</div>}
           {grammarNotes && <div className="grammar-notes">{grammarNotes}</div>}
         </div>
       );

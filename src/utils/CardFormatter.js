@@ -35,56 +35,72 @@ const reformatCardBack = (backText) => {
   }
   
   // Extract the grammar section
+  let textWithoutGrammar = backText;
   if (grammarStart !== -1) {
     grammar = backText.substring(grammarStart);
-    backText = backText.substring(0, grammarStart).trim();
+    textWithoutGrammar = backText.substring(0, grammarStart).trim();
   }
   
   // Improved pattern matching for separating translation from example
   
-  // Pattern 1: Look for a complete sentence starting with capital letter
-  // This captures cases like "to throw out. I need to throw out these old newspapers."
-  const sentencePattern = /^([^.!?]+[.!?])\s+([A-Z].+)$/;
-  const sentenceMatch = backText.match(sentencePattern);
+  // Pattern 1: Look for sentences that start with "I" after the main translation
+  // This is common in your examples like "to see (catch sight of, specific instance) I would like to see the Old Town"
+  const iStatementPattern = /^([^.!?;]+?(?:;[^.!?;]+?)*)\s+I\s+(.+)$/i;
+  const iStatementMatch = textWithoutGrammar.match(iStatementPattern);
   
-  if (sentenceMatch) {
-    translation = sentenceMatch[1].trim();
-    example = sentenceMatch[2].trim();
+  if (iStatementMatch) {
+    translation = iStatementMatch[1].trim();
+    example = "I " + iStatementMatch[2].trim();
   } else {
-    // Pattern 2: Look for "to verb" with multiple sentences
-    // This captures cases like "to throw out I need to throw out these old newspapers."
-    const verbWithExamplePattern = /^(to [a-zA-Z\s]+(?:się)?)\s+([A-Z][^.!?]+[.!?].*)$/i;
-    const verbMatch = backText.match(verbWithExamplePattern);
+    // Pattern 2: Look for any English sentence after a semicolon or closing parenthesis
+    // This covers cases like "to fall out; turn out (well/badly); be appropriate; occur (on a date) This year my birthday falls"
+    const semicolonPattern = /^([^.!?]+(?:\([^)]+\))?(?:;[^.!?;]+)*;[^.!?;]+)\s+([A-Z][^.!?;]+.*)$/;
+    const semicolonMatch = textWithoutGrammar.match(semicolonPattern);
     
-    if (verbMatch) {
-      translation = verbMatch[1].trim();
-      example = verbMatch[2].trim();
+    if (semicolonMatch) {
+      translation = semicolonMatch[1].trim();
+      example = semicolonMatch[2].trim();
     } else {
-      // Pattern 3: Split at the first capital letter after the initial part
-      // This is more aggressive but catches more cases
-      const splitAfterTranslationPattern = /^([^A-Z]+)\s+([A-Z].+)$/;
-      const splitMatch = backText.match(splitAfterTranslationPattern);
+      // Pattern 3: Look for definitive closing of translation with parentheses
+      // E.g., "to see (catch sight of, specific instance) I would like to see"
+      const parensPattern = /^(.+\))\s+([A-Z].+)$/;
+      const parensMatch = textWithoutGrammar.match(parensPattern);
       
-      if (splitMatch) {
-        translation = splitMatch[1].trim();
-        example = splitMatch[2].trim();
+      if (parensMatch) {
+        translation = parensMatch[1].trim();
+        example = parensMatch[2].trim();
       } else {
-        // Fallback: just use the whole text as translation
-        translation = backText;
+        // Pattern 4: Look for a capital letter after multiple definitions
+        // E.g. "to look; to seem; to appear The house looks beautiful"
+        const capitalsAfterSemicolon = /^([^.!?;]+(?:;\s+[^.!?;]+)+)\s+([A-Z].+)$/;
+        const capitalMatch = textWithoutGrammar.match(capitalsAfterSemicolon);
+        
+        if (capitalMatch) {
+          translation = capitalMatch[1].trim();
+          example = capitalMatch[2].trim();
+        } else {
+          // Fallback: just use the whole text as translation
+          translation = textWithoutGrammar;
+        }
       }
     }
   }
   
   // Ensure translation ends with a period if it doesn't have punctuation
-  if (translation && !/[.!?]$/.test(translation)) {
+  if (translation && !/[.!?;]$/.test(translation)) {
     translation += '.';
+  }
+  
+  // Ensure example has proper punctuation
+  if (example && !/[.!?]$/.test(example)) {
+    example += '.';
   }
   
   // Combine the reformatted sections with double newlines
   return `${translation}${example ? '\n\n' + example : ''}${grammar ? '\n\n' + grammar : ''}`;
 };
 
-// NEW: Function to reformat front content to ensure example sentences appear
+// Function to reformat front content to ensure example sentences appear
 const reformatFrontContent = (frontText) => {
   if (!frontText) return frontText;
   
