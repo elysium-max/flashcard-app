@@ -1,4 +1,4 @@
-// src/components/Flashcard.js - Improved to handle reflexive verbs and multiple examples
+// src/components/Flashcard.js - Final version with fixed parsing logic
 
 import React, { useState, useContext, useEffect } from 'react';
 import { FlashcardContext } from '../context/FlashcardContext';
@@ -80,7 +80,7 @@ const Flashcard = () => {
     }
   };
   
-  // Format the back side of the card to handle multiple examples
+  // Format the back side of the card with improved parsing for closing parentheses
   const formatBackContent = (backText) => {
     if (!backText) return <div className="card-content"><div className="translation">No content</div></div>;
     
@@ -94,29 +94,25 @@ const Flashcard = () => {
       // Any remaining sections are grammar notes
       const grammarNotes = mainSections.length > 1 ? mainSections.slice(1).join('\n\n') : '';
       
-      // Find the first occurrence of a capital letter after the translation
-      // This can handle cases where there are multiple sentences in the example
-      const firstCapitalIndex = translationWithExample.search(/\)\s+[A-Z]/);
+      // Special handling for "action)" pattern in your example
+      // This looks for the sentence pattern: starting with a capital letter after the closing parenthesis
+      // Format: "to analyse (process, ongoing action) The professor..."
+      const exampleMatch = translationWithExample.match(/^(.+?\))\s+([A-Z].+)$/);
       
       let translationPart = '';
       let examplePart = '';
       
-      if (firstCapitalIndex !== -1) {
-        // Find the space before the capital letter
-        const spaceIndex = translationWithExample.lastIndexOf(' ', firstCapitalIndex);
-        
-        translationPart = translationWithExample.substring(0, spaceIndex + 1);
-        examplePart = translationWithExample.substring(spaceIndex + 1);
+      if (exampleMatch) {
+        // We have a clear match with a closing parenthesis followed by a capital letter
+        translationPart = exampleMatch[1]; // Everything up to and including the closing parenthesis
+        examplePart = exampleMatch[2];     // Everything starting with the capital letter
       } else {
-        // Try another approach: look for a period followed by a capital letter
-        const periodCapIndex = translationWithExample.search(/\.\s+[A-Z]/);
+        // Try finding any sentence starting with a capital letter
+        const capitalMatch = translationWithExample.match(/^(.+?)\s+([A-Z][^.!?]+[.!?])$/);
         
-        if (periodCapIndex !== -1) {
-          // Find the space after the period
-          const spaceAfterPeriod = translationWithExample.indexOf(' ', periodCapIndex);
-          
-          translationPart = translationWithExample.substring(0, spaceAfterPeriod + 1);
-          examplePart = translationWithExample.substring(spaceAfterPeriod + 1);
+        if (capitalMatch) {
+          translationPart = capitalMatch[1];
+          examplePart = capitalMatch[2];
         } else {
           // If no clear split found, just use the whole text as translation
           translationPart = translationWithExample;
