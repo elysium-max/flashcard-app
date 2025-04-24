@@ -22,6 +22,8 @@ const Stats = () => {
   const fileInputRef = useRef(null);
   const [importStatus, setImportStatus] = useState('');
   const [isImporting, setIsImporting] = useState(false);
+  const [showCountDown, setShowCountDown] = useState(false);
+  const [countDown, setCountDown] = useState(5);
   
   // Calculate percentage of known cards
   const knownPercentage = stats.total > 0 
@@ -35,6 +37,20 @@ const Stats = () => {
       return () => clearTimeout(timer);
     }
   }, [importStatus]);
+  
+  // Handle countdown for refreshing after import
+  useEffect(() => {
+    if (showCountDown) {
+      if (countDown > 0) {
+        const timer = setTimeout(() => setCountDown(countDown - 1), 1000);
+        return () => clearTimeout(timer);
+      } else {
+        setShowCountDown(false);
+        setCountDown(5);
+        window.location.reload(); // Force a complete page reload to ensure everything is fresh
+      }
+    }
+  }, [showCountDown, countDown]);
   
   // Export flashcards data as JSON file with error handling
   const handleExport = () => {
@@ -139,12 +155,15 @@ const Stats = () => {
         fileInputRef.current.value = '';
       }
       
-      // Verify cards were actually imported by checking the cards state
-      if (Array.isArray(cards) && cards.length > 0) {
+      // Check if we have cards now
+      if (addedCount > 0) {
         setImportStatus(`Successfully imported ${addedCount} flashcards!`);
       } else {
-        // Fallback - the import seemed to work but we don't see the cards
-        setImportStatus(`Import processed ${addedCount} cards but they may not have loaded properly. Try refreshing.`);
+        // If something went wrong but we didn't get an error
+        setImportStatus(`Import completed with ${addedCount} cards. You may need to refresh the page.`);
+        
+        // Offer a countdown to auto-refresh
+        setShowCountDown(true);
       }
     } catch (error) {
       console.error('Import error:', error);
@@ -197,6 +216,11 @@ const Stats = () => {
   const handleToggleDebug = () => {
     toggleDebug();
     setImportStatus(debug ? 'Debug mode disabled' : 'Debug mode enabled');
+  };
+  
+  // Hand full page reload
+  const handleHardRefresh = () => {
+    window.location.reload();
   };
   
   // Format the sync time for display
@@ -318,13 +342,23 @@ const Stats = () => {
           </button>
         </div>
         
-        <button 
-          className="debug-btn" 
-          onClick={handleToggleDebug}
-          title="Toggle debug mode"
-        >
-          <FaBug /> {debug ? 'Disable Debug' : 'Enable Debug'}
-        </button>
+        <div className="debug-buttons">
+          <button 
+            className="debug-btn" 
+            onClick={handleToggleDebug}
+            title="Toggle debug mode"
+          >
+            <FaBug /> {debug ? 'Disable Debug' : 'Enable Debug'}
+          </button>
+          
+          <button 
+            className="reload-btn" 
+            onClick={handleHardRefresh}
+            title="Force reload entire page"
+          >
+            <FaSync /> Force Reload Page
+          </button>
+        </div>
       </div>
       
       <div className="card-status">
@@ -340,6 +374,12 @@ const Stats = () => {
               <FaInfoCircle /> {importStatus}
             </>
           )}
+        </div>
+      )}
+      
+      {showCountDown && (
+        <div className="countdown">
+          Reloading page in {countDown} seconds... <button onClick={() => setShowCountDown(false)}>Cancel</button>
         </div>
       )}
       

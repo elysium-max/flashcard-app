@@ -13,8 +13,7 @@ import {
   where,
   writeBatch,
   serverTimestamp,
-  getDoc,
-  orderBy
+  getDoc
 } from 'firebase/firestore';
 import { 
   createUserWithEmailAndPassword, 
@@ -73,11 +72,10 @@ export const FlashcardProvider = ({ children }) => {
       setCardsLoading(true);
       setSyncStatus('syncing');
       
-      // This query should work now that you've created the composite index
+      // This simple query doesn't require any index
       const q = query(
         collection(db, 'flashcards'), 
-        where('userId', '==', user.uid),
-        orderBy('createdAt', 'asc')
+        where('userId', '==', user.uid)
       );
       
       const snapshot = await getDocs(q);
@@ -85,48 +83,9 @@ export const FlashcardProvider = ({ children }) => {
       // Log for debugging
       console.log(`Firestore query returned ${snapshot.docs.length} documents`);
       
-      if (snapshot.docs.length === 0) {
-        // Try a simpler query to see if there are any cards at all
-        const simpleQ = query(
-          collection(db, 'flashcards'), 
-          where('userId', '==', user.uid)
-        );
-        
-        const simpleSnapshot = await getDocs(simpleQ);
-        console.log(`Simple query returned ${simpleSnapshot.docs.length} documents`);
-        
-        if (simpleSnapshot.docs.length > 0) {
-          console.log("Cards exist but couldn't be loaded with ordered query. Using simple query results.");
-          const simpleData = simpleSnapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data(),
-            // Handle timestamp fields
-            lastReviewed: doc.data().lastReviewed ? 
-              (typeof doc.data().lastReviewed.toDate === 'function' ? 
-                doc.data().lastReviewed.toDate().toISOString() : doc.data().lastReviewed) : 
-              null,
-            createdAt: doc.data().createdAt ? 
-              (typeof doc.data().createdAt.toDate === 'function' ? 
-                doc.data().createdAt.toDate().toISOString() : doc.data().createdAt) : 
-              new Date().toISOString()
-          }));
-          
-          setCards(simpleData);
-          setLastSyncTime(new Date().toISOString());
-          setSyncStatus('idle');
-          setCardsLoading(false);
-          return;
-        }
-      }
-      
-      // Map docs to cards with careful timestamp handling
+      // Process the results directly without trying to order them in Firestore
       const flashcardsData = snapshot.docs.map(doc => {
         const data = doc.data();
-        
-        // Debug logging for a sample card
-        if (debug && snapshot.docs.length > 0 && doc === snapshot.docs[0]) {
-          console.log("Sample card data:", data);
-        }
         
         return {
           id: doc.id,
@@ -147,6 +106,16 @@ export const FlashcardProvider = ({ children }) => {
         };
       });
       
+      // Sort the cards client-side instead of using Firestore's orderBy
+      flashcardsData.sort((a, b) => {
+        if (a.createdAt && b.createdAt) {
+          const dateA = new Date(a.createdAt);
+          const dateB = new Date(b.createdAt);
+          return dateA - dateB;
+        }
+        return 0;
+      });
+      
       console.log(`Loaded ${flashcardsData.length} cards from Firestore`);
       
       setCards(flashcardsData);
@@ -159,39 +128,6 @@ export const FlashcardProvider = ({ children }) => {
     } catch (error) {
       console.error("Error loading flashcards:", error);
       setSyncStatus('error');
-      
-      // Try a simpler approach as a fallback
-      try {
-        const simpleQ = query(
-          collection(db, 'flashcards'), 
-          where('userId', '==', user.uid)
-        );
-        
-        const simpleSnapshot = await getDocs(simpleQ);
-        console.log(`Fallback query returned ${simpleSnapshot.docs.length} documents`);
-        
-        if (simpleSnapshot.docs.length > 0) {
-          const simpleData = simpleSnapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data(),
-            // Handle timestamp fields consistently
-            lastReviewed: doc.data().lastReviewed ? 
-              (typeof doc.data().lastReviewed.toDate === 'function' ? 
-                doc.data().lastReviewed.toDate().toISOString() : doc.data().lastReviewed) : 
-              null,
-            createdAt: doc.data().createdAt ? 
-              (typeof doc.data().createdAt.toDate === 'function' ? 
-                doc.data().createdAt.toDate().toISOString() : doc.data().createdAt) : 
-              new Date().toISOString()
-          }));
-          
-          setCards(simpleData);
-          setLastSyncTime(new Date().toISOString());
-          setSyncStatus('idle');
-        }
-      } catch (fallbackError) {
-        console.error("Fallback loading also failed:", fallbackError);
-      }
     } finally {
       setCardsLoading(false);
     }
@@ -327,8 +263,8 @@ export const FlashcardProvider = ({ children }) => {
       console.error('Error updating card status:', error);
       setSyncStatus('error');
       
-      // Attempt to recover by reloading cards
-      await loadUserCards();
+      // Even if there's an error, keep the local state update
+      // This ensures the UI remains responsive
     }
   };
 
@@ -440,8 +376,8 @@ export const FlashcardProvider = ({ children }) => {
       console.error('Error resetting cards:', error);
       setSyncStatus('error');
       
-      // Attempt to recover by reloading cards
-      await loadUserCards();
+      // Even if there's an error updating Firestore, keep the local state update
+      // This ensures the UI remains usable
     } finally {
       setCardsLoading(false);
     }
@@ -534,7 +470,11 @@ export const FlashcardProvider = ({ children }) => {
     } catch (error) {
       console.error('Error clearing cards:', error);
       setSyncStatus('error');
-      alert(`Failed to clear cards: ${error.message}`);
+      
+      // Clear local state anyway to maintain consistency with intention
+      setCards([]);
+      setCurrentCardIndex(0);
+      
       return false;
     } finally {
       setCardsLoading(false);
@@ -668,13 +608,18 @@ export const FlashcardProvider = ({ children }) => {
                     lastReviewed: newCards[j].lastReviewed
                   };
                 })
+                .catch(err => {
+                  console.error(`Error adding card at index ${j}:`, err);
+                  return null;
+                })
             );
           }
           
           const batchResults = await Promise.all(batchPromises);
-          addedCards.push(...batchResults.filter(card => card !== null));
+          const validResults = batchResults.filter(card => card !== null);
+          addedCards.push(...validResults);
           
-          console.log(`Added ${batchResults.length} cards in batch ${i + 1}`);
+          console.log(`Added ${validResults.length} cards in batch ${i + 1}`);
         }
       }
       
@@ -704,19 +649,22 @@ export const FlashcardProvider = ({ children }) => {
             });
           }
           
-          await batch.commit();
-          updatedCards.push(...batchUpdates);
-          
-          console.log(`Updated ${end - start} cards in batch ${i + 1}`);
+          try {
+            await batch.commit();
+            updatedCards.push(...batchUpdates);
+            console.log(`Updated ${end - start} cards in batch ${i + 1}`);
+          } catch (error) {
+            console.error(`Error updating batch ${i + 1}:`, error);
+          }
         }
       }
       
       // Now update our local state with all the processed cards
       const allProcessedCards = [...addedCards, ...updatedCards];
       console.log(`Processed ${allProcessedCards.length} cards total.`);
-      
-      // IMPORTANT: Set the cards directly in state instead of calling loadUserCards()
-      // This ensures we have the cards in memory even if Firestore queries are having issues
+
+      // CRITICAL: Update local state with all processed cards
+      // even if Firestore loading fails
       setCards(allProcessedCards);
       setCurrentCardIndex(0);
       

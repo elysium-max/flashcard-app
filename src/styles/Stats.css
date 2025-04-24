@@ -107,12 +107,17 @@
     margin-left: 8px;
   }
   
-  .debug-btn {
+  /* Debug buttons container */
+  .debug-buttons {
+    display: flex;
+    gap: 1rem;
     margin-top: 1rem;
+    width: 100%;
+  }
+  
+  .debug-btn, .reload-btn {
+    flex: 1;
     padding: 0.75rem;
-    background-color: #34495e;
-    color: white;
-    border: none;
     border-radius: 8px;
     font-weight: 500;
     display: flex;
@@ -122,11 +127,64 @@
     transition: all 0.3s ease;
     cursor: pointer;
     font-size: 0.9rem;
+    border: none;
+  }
+  
+  .debug-btn {
+    background-color: #34495e;
+    color: white;
   }
   
   .debug-btn:hover {
     background-color: #2c3e50;
     transform: translateY(-2px);
+  }
+  
+  .reload-btn {
+    background-color: #95a5a6;
+    color: white;
+  }
+  
+  .reload-btn:hover {
+    background-color: #7f8c8d;
+    transform: translateY(-2px);
+  }
+  
+  /* Countdown for auto-reload */
+  .countdown {
+    margin-top: 1rem;
+    padding: 0.75rem;
+    background-color: #f39c12;
+    color: white;
+    border-radius: 8px;
+    text-align: center;
+    font-weight: 500;
+    animation: pulse 1s infinite alternate;
+  }
+  
+  .countdown button {
+    background: rgba(255, 255, 255, 0.3);
+    color: white;
+    border: none;
+    padding: 4px 8px;
+    border-radius: 4px;
+    margin-left: 8px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: all 0.2s ease;
+  }
+  
+  .countdown button:hover {
+    background: rgba(255, 255, 255, 0.5);
+  }
+  
+  @keyframes pulse {
+    from {
+      background-color: #f39c12;
+    }
+    to {
+      background-color: #e67e22;
+    }
   }
   
   .progress-bar {
@@ -314,6 +372,9 @@
     text-align: center;
     color: #7f8c8d;
     font-size: 0.9rem;
+    padding: 0.5rem;
+    border-radius: 4px;
+    background-color: #f8f9fa;
   }
   
   .import-status {
@@ -374,5 +435,9 @@
       flex-direction: column;
       align-items: flex-start;
       gap: 8px;
+    }
+    
+    .debug-buttons {
+      flex-direction: column;
     }
   }
