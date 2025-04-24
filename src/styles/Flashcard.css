@@ -1,4 +1,4 @@
-/* src/styles/Flashcard.css - Complete file with enhanced styling */
+/* src/styles/Flashcard.css - Corrected styling for word/example separation */
 
 .flashcard-container {
     width: 100%;
@@ -430,6 +430,10 @@
     
     .translation {
       font-size: 1.7rem;
+    }
+    
+    .translated-example {
+      font-size: 1.2rem;
     }
     
     .flashcard-container {

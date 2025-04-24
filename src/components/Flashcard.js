@@ -1,4 +1,4 @@
-// src/components/Flashcard.js - Updated with consistent formatting for examples
+// src/components/Flashcard.js - Improved to handle reflexive verbs and multiple examples
 
 import React, { useState, useContext, useEffect } from 'react';
 import { FlashcardContext } from '../context/FlashcardContext';
@@ -35,41 +35,42 @@ const Flashcard = () => {
     }
   }, [cards, studyMode, currentCard, getNextCard]);
   
-  // Format the front side of the card - Simplified for consistent formatting
+  // Format the front side of the card to handle reflexive verbs with "się" or "sobie"
   const formatFrontContent = (frontText) => {
     if (!frontText) return <div className="card-content"><div className="vocab-word">No content</div></div>;
     
     try {
-      // Split by period+space or period+newline to separate the verb from example sentence
-      const parts = frontText.split(/\.\s+|\.\n+/);
+      // First check if the verb phrase contains reflexive markers with a period after them
+      const reflexiveMatch = frontText.match(/^([\wąćęłńóśźż]+(?: się| sobie)?(?:\s+\([^)]+\))?\.)(.*)/);
       
-      // The first part should contain the verb or vocabulary word
-      let vocabWord = parts[0].trim();
+      let wordPart = '';
+      let examplePart = '';
       
-      // Collect all additional parts as example sentences
-      let example = '';
-      if (parts.length > 1) {
-        example = parts.slice(1).join('. ').trim();
+      if (reflexiveMatch) {
+        // We found a pattern with a reflexive verb or a verb with suffix + period
+        wordPart = reflexiveMatch[1]; // Includes the period
+        examplePart = reflexiveMatch[2].trim();
+      } else {
+        // Try a more general split by period + space
+        const parts = frontText.split(/\.\s+/);
         
-        // Add period to example if needed
-        if (example && !example.endsWith('.') && !example.endsWith('!') && !example.endsWith('?')) {
-          example += '.';
+        if (parts.length > 1) {
+          wordPart = parts[0] + '.'; // Add the period back
+          examplePart = parts.slice(1).join('. '); // Rejoin any remaining parts
+        } else {
+          // If no split found, just use the whole text as word
+          wordPart = frontText;
         }
-      }
-      
-      // Ensure vocab word has a period if not already
-      if (!vocabWord.endsWith('.') && !vocabWord.endsWith('!') && !vocabWord.endsWith('?')) {
-        vocabWord += '.';
       }
       
       return (
         <div className="card-content">
-          <div className="vocab-word">{vocabWord}</div>
-          {example && <div className="example">{example}</div>}
+          <div className="vocab-word">{wordPart}</div>
+          {examplePart && <div className="example">{examplePart}</div>}
         </div>
       );
     } catch (error) {
-      // If any error occurs in parsing, use a safe fallback
+      // Fallback for any errors
       console.error("Error parsing front content:", error);
       return (
         <div className="card-content">
@@ -79,71 +80,53 @@ const Flashcard = () => {
     }
   };
   
-  // Simplified format back content function for consistent formatting
+  // Format the back side of the card to handle multiple examples
   const formatBackContent = (backText) => {
     if (!backText) return <div className="card-content"><div className="translation">No content</div></div>;
     
     try {
-      // Check if content has double newlines which indicate formatted sections
-      if (backText.includes('\n\n')) {
-        // Split by double newlines to separate formatted sections
-        const sections = backText.split('\n\n');
+      // First split by double newlines to separate translation+example from grammar notes
+      const mainSections = backText.split('\n\n');
+      
+      // Get the translation+example section
+      const translationWithExample = mainSections[0];
+      
+      // Any remaining sections are grammar notes
+      const grammarNotes = mainSections.length > 1 ? mainSections.slice(1).join('\n\n') : '';
+      
+      // Find the first occurrence of a capital letter after the translation
+      // This can handle cases where there are multiple sentences in the example
+      const firstCapitalIndex = translationWithExample.search(/\)\s+[A-Z]/);
+      
+      let translationPart = '';
+      let examplePart = '';
+      
+      if (firstCapitalIndex !== -1) {
+        // Find the space before the capital letter
+        const spaceIndex = translationWithExample.lastIndexOf(' ', firstCapitalIndex);
         
-        const translation = sections[0];
-        const example = sections.length > 1 ? sections[1] : '';
-        const grammar = sections.length > 2 ? sections[2] : '';
-        
-        return (
-          <div className="card-content">
-            <div className="translation">{translation}</div>
-            {example && <div className="translated-example">{example}</div>}
-            {grammar && <div className="grammar-notes">{grammar}</div>}
-          </div>
-        );
-      }
-      
-      // For unformatted content, look for grammar sections
-      const grammarMarkers = ['Conj.', 'Notes:', 'Note:', 'Grammar:', 'Gram.'];
-      
-      // Find the start of grammar section
-      let grammarStart = -1;
-      let grammarMarker = '';
-      
-      for (const marker of grammarMarkers) {
-        const index = backText.indexOf(marker);
-        if (index !== -1 && (grammarStart === -1 || index < grammarStart)) {
-          grammarStart = index;
-          grammarMarker = marker;
-        }
-      }
-      
-      // Extract grammar notes if available
-      let mainText = backText;
-      let grammarNotes = '';
-      
-      if (grammarStart !== -1) {
-        grammarNotes = backText.substring(grammarStart).trim();
-        mainText = backText.substring(0, grammarStart).trim();
-      }
-      
-      // Look for a period followed by a capital letter to separate example from translation
-      const periodCapitalMatch = mainText.match(/^([^.!?]+\.)[\s]+([A-Z].+)$/);
-      
-      let translation = '';
-      let example = '';
-      
-      if (periodCapitalMatch) {
-        translation = periodCapitalMatch[1].trim();
-        example = periodCapitalMatch[2].trim();
+        translationPart = translationWithExample.substring(0, spaceIndex + 1);
+        examplePart = translationWithExample.substring(spaceIndex + 1);
       } else {
-        // Just use the whole text as translation if no clear separation
-        translation = mainText;
+        // Try another approach: look for a period followed by a capital letter
+        const periodCapIndex = translationWithExample.search(/\.\s+[A-Z]/);
+        
+        if (periodCapIndex !== -1) {
+          // Find the space after the period
+          const spaceAfterPeriod = translationWithExample.indexOf(' ', periodCapIndex);
+          
+          translationPart = translationWithExample.substring(0, spaceAfterPeriod + 1);
+          examplePart = translationWithExample.substring(spaceAfterPeriod + 1);
+        } else {
+          // If no clear split found, just use the whole text as translation
+          translationPart = translationWithExample;
+        }
       }
       
       return (
         <div className="card-content">
-          <div className="translation">{translation}</div>
-          {example && <div className="translated-example">{example}</div>}
+          <div className="translation">{translationPart}</div>
+          {examplePart && <div className="translated-example">{examplePart}</div>}
           {grammarNotes && <div className="grammar-notes">{grammarNotes}</div>}
         </div>
       );
