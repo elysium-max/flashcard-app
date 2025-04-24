@@ -4,17 +4,19 @@ import React, { useContext, useRef, useState, useEffect } from 'react';
 import { FlashcardContext } from '../context/FlashcardContext';
 import '../styles/Stats.css';
 import { FaCheck, FaTimes, FaSync, FaDownload, FaUpload, FaInfoCircle, FaRedo, FaBug, FaMagic } from 'react-icons/fa';
-import { exportReformattedCards } from '../utils/CardFormatter';
+import { magicFixCards } from '../utils/CardFormatter';
 
 const Stats = () => {
   const { 
     stats, 
     resetCards, 
     cards, 
+    setCards,
     importCards, 
     clearCards, 
     refreshCards,
     syncStatus,
+    setSyncStatus,
     lastSyncTime,
     toggleDebug,
     debug
@@ -103,24 +105,31 @@ const Stats = () => {
     }
   };
   
-  // Handle reformatting cards
-  const handleReformatCards = async () => {
+  // Handle Magic Fix - reformat cards in-app without export/import
+  const handleMagicFix = async () => {
     try {
       if (!Array.isArray(cards) || cards.length === 0) {
-        setImportStatus('Error: No cards to reformat');
+        setImportStatus('Error: No cards to format');
         return;
       }
       
       setIsReformatting(true);
-      setImportStatus('Reformatting cards...');
       
-      // Use the utility to export reformatted cards
-      exportReformattedCards(cards);
+      // Use the magicFixCards function which updates both Firestore and local state
+      const result = await magicFixCards(cards, setCards, setSyncStatus, setImportStatus);
       
-      setImportStatus(`Successfully reformatted ${cards.length} cards. Please import the downloaded file to update your cards.`);
+      if (result.success) {
+        if (result.count > 0) {
+          setImportStatus(`✨ Magic fix complete! Reformatted ${result.count} cards`);
+        } else {
+          setImportStatus(`✨ All cards are already properly formatted!`);
+        }
+      } else {
+        setImportStatus(`Error: Failed to format cards. ${result.error?.message || ''}`);
+      }
     } catch (error) {
-      console.error('Error reformatting cards:', error);
-      setImportStatus(`Reformat failed: ${error.message}`);
+      console.error('Error during magic fix:', error);
+      setImportStatus(`Error: Magic fix failed: ${error.message}`);
     } finally {
       setIsReformatting(false);
     }
@@ -368,11 +377,11 @@ const Stats = () => {
         </div>
         
         <button 
-          className="format-btn" 
-          onClick={handleReformatCards}
+          className="format-btn"
+          onClick={handleMagicFix}
           disabled={syncStatus === 'syncing' || isImporting || isReformatting || stats.total === 0}
         >
-          <FaMagic /> Fix Card Formatting
+          <FaMagic /> ✨ Magic Fix Formatting
         </button>
         
         <div className="debug-buttons">
@@ -401,8 +410,8 @@ const Stats = () => {
       </div>
       
       {importStatus && (
-        <div className={`import-status ${importStatus.includes('Error') || importStatus.includes('failed') ? 'error' : importStatus.includes('Successfully') ? 'success' : ''}`}>
-          {importStatus.includes('Reading') || importStatus.includes('Syncing') || importStatus.includes('Clearing') || importStatus.includes('Refreshing') || importStatus.includes('Reformatting') ? (
+        <div className={`import-status ${importStatus.includes('Error') || importStatus.includes('failed') ? 'error' : importStatus.includes('Successfully') || importStatus.includes('Magic fix complete') ? 'success' : ''}`}>
+          {importStatus.includes('Reading') || importStatus.includes('Syncing') || importStatus.includes('Clearing') || importStatus.includes('Refreshing') || importStatus.includes('Reformatting') || importStatus.includes('Updating batch') ? (
             <div className="import-loading">{importStatus}</div>
           ) : (
             <>

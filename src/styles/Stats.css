@@ -1,4 +1,4 @@
-/* src/styles/Stats.css - Enhanced with format button styling */
+/* src/styles/Stats.css - Complete updated version */
 
 .stats-container {
     background-color: white;
@@ -150,37 +150,6 @@
     transform: translateY(-2px);
   }
   
-  /* Format button styling */
-  .format-btn {
-    width: 100%;
-    padding: 0.875rem;
-    margin-top: 0.25rem;
-    color: white;
-    background-color: #9b59b6;
-    border-radius: 8px;
-    font-weight: 500;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    transition: all 0.3s ease;
-    border: none;
-    cursor: pointer;
-  }
-  
-  .format-btn:hover:not(:disabled) {
-    background-color: #8e44ad;
-    transform: translateY(-2px);
-    box-shadow: 0 4px 10px rgba(155, 89, 182, 0.3);
-  }
-  
-  .format-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-    transform: none !important;
-    box-shadow: none !important;
-  }
-  
   /* Countdown for auto-reload */
   .countdown {
     margin-top: 1rem;
@@ -207,15 +176,6 @@
   
   .countdown button:hover {
     background: rgba(255, 255, 255, 0.5);
-  }
-  
-  @keyframes pulse {
-    from {
-      background-color: #f39c12;
-    }
-    to {
-      background-color: #e67e22;
-    }
   }
   
   .progress-bar {
@@ -328,7 +288,7 @@
     cursor: pointer;
   }
   
-  .reset-btn:disabled, .clear-btn:disabled, .export-btn:disabled, .import-btn:disabled {
+  .reset-btn:disabled, .clear-btn:disabled, .export-btn:disabled, .import-btn:disabled, .format-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
     transform: none !important;
@@ -397,6 +357,65 @@
     box-shadow: 0 4px 10px rgba(46, 204, 113, 0.3);
   }
   
+  /* Format button with magic effects */
+  .format-btn {
+    width: 100%;
+    padding: 0.875rem;
+    margin-top: 0.25rem;
+    color: white;
+    background: linear-gradient(135deg, #9b59b6, #8e44ad);
+    border-radius: 8px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: all 0.3s ease;
+    border: none;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+  }
+  
+  .format-btn:hover:not(:disabled) {
+    background: linear-gradient(135deg, #8e44ad, #6c3483);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 15px rgba(155, 89, 182, 0.35);
+  }
+  
+  /* Add sparkle effect to the Magic Fix button */
+  .format-btn::before {
+    content: "";
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: linear-gradient(
+      to bottom right,
+      rgba(255, 255, 255, 0) 0%,
+      rgba(255, 255, 255, 0.1) 50%,
+      rgba(255, 255, 255, 0) 100%
+    );
+    transform: rotate(45deg);
+    animation: shimmer 3s infinite;
+    z-index: 1;
+  }
+  
+  .format-btn > * {
+    position: relative;
+    z-index: 2;
+  }
+  
+  @keyframes shimmer {
+    0% {
+      transform: translateX(-100%) rotate(45deg);
+    }
+    100% {
+      transform: translateX(100%) rotate(45deg);
+    }
+  }
+  
   /* Card status indicator */
   .card-status {
     margin-top: 0.5rem;
@@ -454,6 +473,15 @@
   @keyframes spin {
     to {
       transform: rotate(360deg);
+    }
+  }
+  
+  @keyframes pulse {
+    from {
+      background-color: #f39c12;
+    }
+    to {
+      background-color: #e67e22;
     }
   }
   

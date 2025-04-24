@@ -74,14 +74,11 @@
     flex: 1;
     display: flex;
     flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.5rem;
-    text-align: center;
-    overflow-y: auto;
+    justify-content: flex-start;
     padding: 1rem 0;
     width: 100%;
     max-height: 100%;
+    overflow-y: auto;
   }
   
   .vocab-word {
@@ -92,6 +89,7 @@
     word-wrap: break-word;
     max-width: 100%;
     text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    text-align: center;
     
     /* Ensure "się" stays on the same line */
     white-space: nowrap;
@@ -104,6 +102,8 @@
     word-wrap: break-word;
     max-width: 100%;
     line-height: 1.4;
+    margin-top: 1rem;
+    text-align: center;
   }
   
   .translation {
@@ -113,16 +113,22 @@
     color: #3498db;
     word-wrap: break-word;
     max-width: 100%;
+    text-align: center;
   }
   
   .translated-example {
     font-style: italic;
     font-size: 1.4rem;
+    margin-top: 1rem;
     margin-bottom: 2rem;
     color: #555;
     word-wrap: break-word;
     max-width: 100%;
     line-height: 1.4;
+    text-align: center;
+    padding: 0.5rem 1rem;
+    background-color: rgba(52, 152, 219, 0.05);
+    border-radius: 8px;
   }
   
   .grammar-notes {
@@ -138,6 +144,7 @@
     overflow-wrap: break-word;
     overflow: auto;
     line-height: 1.6;
+    margin-top: 1rem;
   }
   
   .card-hint {

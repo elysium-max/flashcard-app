@@ -263,7 +263,7 @@ export const FlashcardProvider = ({ children }) => {
       console.error('Error updating card status:', error);
       setSyncStatus('error');
       
-      // Even if there's an error, keep the local state update
+      // Even if there's an error updating Firestore, keep the local state update
       // This ensures the UI remains responsive
     }
   };
@@ -723,6 +723,7 @@ export const FlashcardProvider = ({ children }) => {
       clearCards,
       refreshCards,
       syncStatus,
+      setSyncStatus,
       lastSyncTime,
       toggleDebug,
       debug
