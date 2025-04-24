@@ -1,6 +1,6 @@
 // src/components/Stats.js
 
-import React, { useContext, useRef } from 'react';
+import React, { useContext, useRef, useState } from 'react';
 import { FlashcardContext } from '../context/FlashcardContext';
 import '../styles/Stats.css';
 import { FaCheck, FaTimes, FaSync, FaDownload, FaUpload } from 'react-icons/fa';
@@ -8,6 +8,7 @@ import { FaCheck, FaTimes, FaSync, FaDownload, FaUpload } from 'react-icons/fa';
 const Stats = () => {
   const { stats, resetCards, cards, importCards, clearCards } = useContext(FlashcardContext);
   const fileInputRef = useRef(null);
+  const [importStatus, setImportStatus] = useState('');
   
   // Calculate percentage of known cards
   const knownPercentage = stats.total > 0 
@@ -47,11 +48,13 @@ const Stats = () => {
     const file = event.target.files[0];
     
     if (file) {
+      setImportStatus('Reading file...');
       const reader = new FileReader();
       
       reader.onload = async (e) => {
         try {
           const importedData = JSON.parse(e.target.result);
+          setImportStatus(`Parsed ${importedData.length} cards from file`);
           
           // Validate the imported data has the expected structure
           if (Array.isArray(importedData) && importedData.length > 0) {
@@ -60,27 +63,43 @@ const Stats = () => {
             if (firstCard.front !== undefined && 
                 firstCard.back !== undefined) {
               
+              setImportStatus('Importing cards, please wait...');
               // Use the importCards function which handles Firebase
-              await importCards(importedData);
+              const addedCount = await importCards(importedData);
               
               // Clear the file input
               if (fileInputRef.current) {
                 fileInputRef.current.value = '';
               }
               
-              alert(`Successfully imported ${importedData.length} flashcards!`);
+              setImportStatus(`Successfully imported ${addedCount || importedData.length} flashcards!`);
+              setTimeout(() => setImportStatus(''), 5000); // Clear after 5 seconds
             } else {
-              alert('The imported file doesn\'t have the expected flashcard structure.');
+              setImportStatus('Error: The imported file doesn\'t have the expected flashcard structure.');
             }
           } else {
-            alert('The imported file doesn\'t contain a valid flashcards array.');
+            setImportStatus('Error: The imported file doesn\'t contain a valid flashcards array.');
           }
         } catch (error) {
-          alert(`Error importing file: ${error.message}`);
+          setImportStatus(`Error importing file: ${error.message}`);
         }
       };
       
       reader.readAsText(file);
+    }
+  };
+  
+  // Handle clearing all cards
+  const handleClearCards = async () => {
+    if (window.confirm('Are you sure you want to delete all cards? This cannot be undone unless you have an export.')) {
+      setImportStatus('Clearing all cards...');
+      try {
+        await clearCards();
+        setImportStatus('All cards have been cleared. You can now import a new set.');
+        setTimeout(() => setImportStatus(''), 5000); // Clear after 5 seconds
+      } catch (error) {
+        setImportStatus(`Error clearing cards: ${error.message}`);
+      }
     }
   };
   
@@ -129,34 +148,34 @@ const Stats = () => {
         </div>
       </div>
       
-      // In Stats.js, add this to your button container
-<div className="button-container">
-  <button className="reset-btn" onClick={resetCards}>
-    <FaSync /> Reset all cards
-  </button>
-  
-  <button 
-    className="reset-btn" 
-    onClick={() => {
-      if (window.confirm('Are you sure you want to delete all cards? This cannot be undone unless you have an export.')) {
-        clearCards();
-      }
-    }}
-    style={{ backgroundColor: '#e74c3c', marginTop: '1rem' }}
-  >
-    <FaTimes /> Clear All Cards
-  </button>
-  
-  <div className="import-export-container">
-    <button className="export-btn" onClick={handleExport}>
-      <FaDownload /> Export Data
-    </button>
-    
-    <button className="import-btn" onClick={triggerFileInput}>
-      <FaUpload /> Import Data
-    </button>
-  </div>
-</div>
+      <div className="button-container">
+        <button className="reset-btn" onClick={resetCards}>
+          <FaSync /> Reset all cards
+        </button>
+        
+        <button 
+          className="clear-btn" 
+          onClick={handleClearCards}
+        >
+          <FaTimes /> Clear All Cards
+        </button>
+        
+        <div className="import-export-container">
+          <button className="export-btn" onClick={handleExport}>
+            <FaDownload /> Export Data
+          </button>
+          
+          <button className="import-btn" onClick={triggerFileInput}>
+            <FaUpload /> Import Data
+          </button>
+        </div>
+      </div>
+      
+      {importStatus && (
+        <div className={`import-status ${importStatus.includes('Error') ? 'error' : ''}`}>
+          {importStatus}
+        </div>
+      )}
       
       <input 
         type="file" 
