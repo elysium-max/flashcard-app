@@ -40,44 +40,32 @@ const Flashcard = () => {
     if (!frontText) return <div className="card-content"><div className="vocab-word">No content</div></div>;
     
     try {
-      // First check if we're dealing with a reflexive verb (has "się" in it)
-      if (frontText.includes('się')) {
-        // This regex specifically handles reflexive verbs
-        // Format: "starzeć się (impf.) Wszyscy się starzejemy, to naturalne."
-        const reflexiveMatch = frontText.match(/^([\wąćęłńóśźż]+ się(?: \([^)]+\))?) (.+)$/i);
-        
-        if (reflexiveMatch) {
-          const vocabWord = reflexiveMatch[1]; // Verb with "się" and any parenthetical info
-          const example = reflexiveMatch[2];   // Example sentence
-          
-          return (
-            <div className="card-content">
-              <div className="vocab-word">{vocabWord}</div>
-              <div className="example">{example}</div>
-            </div>
-          );
-        }
+      // Split by period+space to separate the verb from example sentence
+      const parts = frontText.split(/\.\s+/);
+      
+      // The first part should contain the verb and aspect info
+      let vocabPart = parts[0];
+      
+      // Extract example sentence if there is one
+      let example = parts.length > 1 ? parts.slice(1).join('. ') : '';
+      
+      // Check if we have parentheses in the vocab part, which likely indicate aspect info
+      const aspectMatch = vocabPart.match(/^([\wąćęłńóśźż]+(?: się)?)(\s+\([^)]+\))?/);
+      
+      let vocabWord = vocabPart;
+      if (aspectMatch) {
+        vocabWord = aspectMatch[0]; // This gives us the verb with aspect info
       }
       
-      // Handle standard format with or without parenthetical info
-      const standardMatch = frontText.match(/^([\wąćęłńóśźż]+(?: \([^)]+\))?) (.+)$/i);
-      
-      if (standardMatch) {
-        const vocabWord = standardMatch[1]; // Word and any parenthetical info
-        const example = standardMatch[2];   // Example sentence
-        
-        return (
-          <div className="card-content">
-            <div className="vocab-word">{vocabWord}</div>
-            <div className="example">{example}</div>
-          </div>
-        );
+      // Add period to example if needed
+      if (example && !example.endsWith('.')) {
+        example += '.';
       }
       
-      // Fallback if the parsing doesn't work - just show the whole text as the vocab word
       return (
         <div className="card-content">
-          <div className="vocab-word">{frontText}</div>
+          <div className="vocab-word">{vocabWord}</div>
+          {example && <div className="example">{example}</div>}
         </div>
       );
     } catch (error) {
@@ -96,47 +84,74 @@ const Flashcard = () => {
     if (!backText) return <div className="card-content"><div className="translation">No content</div></div>;
     
     try {
-      // More robust parsing for the back content
-      let translation = '';
-      let example = '';
-      let grammarNotes = '';
+      // Step 1: Split the text by periods that are followed by space and an uppercase letter
+      // This helps separate the translation from example sentence
+      const segments = backText.split(/\.\s+(?=[A-Z])/);
       
-      // First try to extract the translation (everything up to the opening parenthesis)
-      const translationMatch = backText.match(/^(.*?)(?:\(|$)/);
-      if (translationMatch && translationMatch[1]) {
-        translation = translationMatch[1].trim();
-      }
+      // The first segment should be the translation (and possibly some grammar hints)
+      let translation = segments[0];
       
-      // Find indices for parsing the example and grammar notes
-      const openParenIndex = backText.indexOf('(');
-      const closeParenIndex = backText.indexOf(')', openParenIndex);
-      
-      // Look for grammar section markers
-      const markers = ['Conj.', 'Notes:', 'Note:', 'Grammar:', 'Gram.'];
-      let grammarStartIndex = -1;
-      
-      for (const marker of markers) {
-        const index = backText.indexOf(marker);
-        if (index !== -1 && (grammarStartIndex === -1 || index < grammarStartIndex)) {
-          grammarStartIndex = index;
+      // If there's no period separator, try to find the first full sentence
+      if (segments.length === 1) {
+        // Try to find the first sentence by looking for common patterns
+        const sentenceMatch = backText.match(/^(to [^.]+?)(?:\s+([A-Z][^.]+\.))/);
+        if (sentenceMatch) {
+          translation = sentenceMatch[1];
+          segments[1] = sentenceMatch[2]; // Add the example sentence
         }
       }
       
-      // Extract example text if available (between close paren and grammar notes)
-      if (closeParenIndex !== -1) {
-        const exampleEndIndex = grammarStartIndex !== -1 ? grammarStartIndex : backText.length;
-        example = backText.substring(closeParenIndex + 1, exampleEndIndex).trim();
+      // Step 2: Find grammar notes
+      const grammarMarkers = ['Conj.', 'Notes:', 'Note:', 'Grammar:', 'Gram.'];
+      let grammarStart = -1;
+      
+      for (const marker of grammarMarkers) {
+        const index = backText.indexOf(marker);
+        if (index !== -1 && (grammarStart === -1 || index < grammarStart)) {
+          grammarStart = index;
+        }
       }
       
       // Extract grammar notes if available
-      if (grammarStartIndex !== -1) {
-        grammarNotes = backText.substring(grammarStartIndex).trim();
+      let grammarNotes = '';
+      if (grammarStart !== -1) {
+        grammarNotes = backText.substring(grammarStart).trim();
+        
+        // Make sure grammar notes don't include parts of the translation/example
+        if (translation.includes(grammarNotes.substring(0, 20))) {
+          translation = translation.replace(grammarNotes, '').trim();
+        }
       }
       
-      // If our parsing failed to find a translation, use the whole text
-      if (!translation && backText) {
-        translation = backText;
+      // Extract example sentence (everything between translation and grammar notes)
+      let example = '';
+      if (segments.length > 1) {
+        // Join all segments except first (translation) into the example
+        example = segments.slice(1).join('. ');
+        
+        // If there are grammar notes, trim example to not include them
+        if (grammarStart !== -1) {
+          example = example.substring(0, example.indexOf(grammarNotes.substring(0, 20)));
+        }
+        
+        // Clean up any trailing/leading spaces or periods
+        example = example.replace(/^\s*\.?\s*|\s*\.?\s*$/g, '');
+        
+        // Add period if there isn't one
+        if (!example.endsWith('.') && example.length > 0) {
+          example += '.';
+        }
       }
+      
+      // Clean up translation (remove any "Conj." text that got included)
+      grammarMarkers.forEach(marker => {
+        if (translation.includes(marker)) {
+          translation = translation.substring(0, translation.indexOf(marker)).trim();
+        }
+      });
+      
+      // Trim any trailing periods from translation
+      translation = translation.replace(/\.\s*$/, '');
       
       return (
         <div className="card-content">

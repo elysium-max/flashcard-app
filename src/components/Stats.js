@@ -3,7 +3,8 @@
 import React, { useContext, useRef, useState, useEffect } from 'react';
 import { FlashcardContext } from '../context/FlashcardContext';
 import '../styles/Stats.css';
-import { FaCheck, FaTimes, FaSync, FaDownload, FaUpload, FaInfoCircle, FaRedo, FaBug } from 'react-icons/fa';
+import { FaCheck, FaTimes, FaSync, FaDownload, FaUpload, FaInfoCircle, FaRedo, FaBug, FaMagic } from 'react-icons/fa';
+import { exportReformattedCards } from '../utils/CardFormatter';
 
 const Stats = () => {
   const { 
@@ -24,6 +25,7 @@ const Stats = () => {
   const [isImporting, setIsImporting] = useState(false);
   const [showCountDown, setShowCountDown] = useState(false);
   const [countDown, setCountDown] = useState(5);
+  const [isReformatting, setIsReformatting] = useState(false);
   
   // Calculate percentage of known cards
   const knownPercentage = stats.total > 0 
@@ -98,6 +100,29 @@ const Stats = () => {
     } catch (error) {
       console.error('Error exporting cards:', error);
       setImportStatus(`Export failed: ${error.message}`);
+    }
+  };
+  
+  // Handle reformatting cards
+  const handleReformatCards = async () => {
+    try {
+      if (!Array.isArray(cards) || cards.length === 0) {
+        setImportStatus('Error: No cards to reformat');
+        return;
+      }
+      
+      setIsReformatting(true);
+      setImportStatus('Reformatting cards...');
+      
+      // Use the utility to export reformatted cards
+      exportReformattedCards(cards);
+      
+      setImportStatus(`Successfully reformatted ${cards.length} cards. Please import the downloaded file to update your cards.`);
+    } catch (error) {
+      console.error('Error reformatting cards:', error);
+      setImportStatus(`Reformat failed: ${error.message}`);
+    } finally {
+      setIsReformatting(false);
     }
   };
   
@@ -218,7 +243,7 @@ const Stats = () => {
     setImportStatus(debug ? 'Debug mode disabled' : 'Debug mode enabled');
   };
   
-  // Hand full page reload
+  // Handle full page reload
   const handleHardRefresh = () => {
     window.location.reload();
   };
@@ -264,7 +289,7 @@ const Stats = () => {
           <button 
             className="refresh-btn" 
             onClick={handleRefresh}
-            disabled={syncStatus === 'syncing' || isImporting}
+            disabled={syncStatus === 'syncing' || isImporting || isReformatting}
             title="Refresh cards from database"
           >
             <FaRedo />
@@ -311,7 +336,7 @@ const Stats = () => {
         <button 
           className="reset-btn" 
           onClick={resetCards}
-          disabled={syncStatus === 'syncing' || isImporting || stats.total === 0}
+          disabled={syncStatus === 'syncing' || isImporting || isReformatting || stats.total === 0}
         >
           <FaSync /> Reset all cards
         </button>
@@ -319,7 +344,7 @@ const Stats = () => {
         <button 
           className="clear-btn" 
           onClick={handleClearCards}
-          disabled={syncStatus === 'syncing' || isImporting || stats.total === 0}
+          disabled={syncStatus === 'syncing' || isImporting || isReformatting || stats.total === 0}
         >
           <FaTimes /> Clear All Cards
         </button>
@@ -328,7 +353,7 @@ const Stats = () => {
           <button 
             className="export-btn" 
             onClick={handleExport}
-            disabled={syncStatus === 'syncing' || isImporting || stats.total === 0}
+            disabled={syncStatus === 'syncing' || isImporting || isReformatting || stats.total === 0}
           >
             <FaDownload /> Export Data
           </button>
@@ -336,17 +361,26 @@ const Stats = () => {
           <button 
             className="import-btn" 
             onClick={triggerFileInput}
-            disabled={syncStatus === 'syncing' || isImporting}
+            disabled={syncStatus === 'syncing' || isImporting || isReformatting}
           >
             <FaUpload /> Import Data
           </button>
         </div>
+        
+        <button 
+          className="format-btn" 
+          onClick={handleReformatCards}
+          disabled={syncStatus === 'syncing' || isImporting || isReformatting || stats.total === 0}
+        >
+          <FaMagic /> Fix Card Formatting
+        </button>
         
         <div className="debug-buttons">
           <button 
             className="debug-btn" 
             onClick={handleToggleDebug}
             title="Toggle debug mode"
+            disabled={isReformatting}
           >
             <FaBug /> {debug ? 'Disable Debug' : 'Enable Debug'}
           </button>
@@ -355,6 +389,7 @@ const Stats = () => {
             className="reload-btn" 
             onClick={handleHardRefresh}
             title="Force reload entire page"
+            disabled={isReformatting}
           >
             <FaSync /> Force Reload Page
           </button>
@@ -367,7 +402,7 @@ const Stats = () => {
       
       {importStatus && (
         <div className={`import-status ${importStatus.includes('Error') || importStatus.includes('failed') ? 'error' : importStatus.includes('Successfully') ? 'success' : ''}`}>
-          {importStatus.includes('Reading') || importStatus.includes('Syncing') || importStatus.includes('Clearing') || importStatus.includes('Refreshing') ? (
+          {importStatus.includes('Reading') || importStatus.includes('Syncing') || importStatus.includes('Clearing') || importStatus.includes('Refreshing') || importStatus.includes('Reformatting') ? (
             <div className="import-loading">{importStatus}</div>
           ) : (
             <>
