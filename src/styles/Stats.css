@@ -1,4 +1,4 @@
-/* src/styles/Stats.css - Enhanced */
+/* src/styles/Stats.css - Enhanced with sync status indicators */
 
 .stats-container {
     background-color: white;
@@ -16,9 +16,84 @@
   .stats-container h2 {
     color: #2c3e50;
     font-weight: 600;
-    margin-bottom: 1.5rem;
+    margin-bottom: 1rem;
     border-bottom: 2px solid rgba(52, 152, 219, 0.1);
     padding-bottom: 0.75rem;
+  }
+  
+  /* New sync status indicator */
+  .sync-status-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+    font-size: 0.9rem;
+  }
+  
+  .sync-indicator {
+    display: flex;
+    align-items: center;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-weight: 500;
+  }
+  
+  .sync-indicator.idle {
+    background-color: rgba(46, 204, 113, 0.2);
+    color: #2ecc71;
+  }
+  
+  .sync-indicator.syncing {
+    background-color: rgba(243, 156, 18, 0.2);
+    color: #f39c12;
+    position: relative;
+  }
+  
+  .sync-indicator.syncing::after {
+    content: "";
+    width: 10px;
+    height: 10px;
+    border: 2px solid #f39c12;
+    border-radius: 50%;
+    border-top-color: transparent;
+    margin-left: 8px;
+    animation: spin 1s linear infinite;
+  }
+  
+  .sync-indicator.error {
+    background-color: rgba(231, 76, 60, 0.2);
+    color: #e74c3c;
+  }
+  
+  .last-sync {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #7f8c8d;
+  }
+  
+  .refresh-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #3498db;
+    font-size: 0.9rem;
+    padding: 4px;
+    border-radius: 50%;
+    transition: all 0.2s ease;
+  }
+  
+  .refresh-btn:hover {
+    background-color: rgba(52, 152, 219, 0.1);
+    transform: rotate(30deg);
+  }
+  
+  .refresh-btn:disabled {
+    color: #95a5a6;
+    cursor: not-allowed;
   }
   
   .progress-bar {
@@ -128,13 +203,21 @@
     gap: 8px;
     transition: all 0.3s ease;
     border: none;
+    cursor: pointer;
+  }
+  
+  .reset-btn:disabled, .clear-btn:disabled, .export-btn:disabled, .import-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none !important;
+    box-shadow: none !important;
   }
   
   .reset-btn {
     background-color: #f39c12;
   }
   
-  .reset-btn:hover {
+  .reset-btn:hover:not(:disabled) {
     background-color: #e67e22;
     transform: translateY(-2px);
     box-shadow: 0 4px 10px rgba(243, 156, 18, 0.3);
@@ -144,7 +227,7 @@
     background-color: #e74c3c;
   }
   
-  .clear-btn:hover {
+  .clear-btn:hover:not(:disabled) {
     background-color: #c0392b;
     transform: translateY(-2px);
     box-shadow: 0 4px 10px rgba(231, 76, 60, 0.3);
@@ -167,6 +250,7 @@
     gap: 8px;
     transition: all 0.3s ease;
     border: none;
+    cursor: pointer;
   }
   
   .export-btn {
@@ -174,7 +258,7 @@
     color: white;
   }
   
-  .export-btn:hover {
+  .export-btn:hover:not(:disabled) {
     background-color: #2980b9;
     transform: translateY(-2px);
     box-shadow: 0 4px 10px rgba(52, 152, 219, 0.3);
@@ -185,29 +269,69 @@
     color: white;
   }
   
-  .import-btn:hover {
+  .import-btn:hover:not(:disabled) {
     background-color: #27ae60;
     transform: translateY(-2px);
     box-shadow: 0 4px 10px rgba(46, 204, 113, 0.3);
   }
   
   .import-status {
-    margin-top: 1rem;
-    padding: 0.75rem;
-    text-align: center;
-    background-color: rgba(46, 204, 113, 0.15);
+    margin-top: 1.25rem;
+    padding: 1rem;
     border-radius: 8px;
-    border-left: 3px solid #2ecc71;
-    font-size: 0.9rem;
+    font-size: 0.95rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    line-height: 1.4;
+    background-color: #f8f9fa;
+    border-left: 3px solid #95a5a6;
+    color: #7f8c8d;
+  }
+  
+  .import-status.success {
+    background-color: rgba(46, 204, 113, 0.15);
+    border-left-color: #2ecc71;
+    color: #27ae60;
   }
   
   .import-status.error {
     background-color: rgba(231, 76, 60, 0.15);
     border-left-color: #e74c3c;
+    color: #c0392b;
+  }
+  
+  /* Loading animation for import status */
+  .import-loading {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  
+  .import-loading::after {
+    content: "";
+    width: 16px;
+    height: 16px;
+    border: 2px solid #95a5a6;
+    border-radius: 50%;
+    border-top-color: transparent;
+    animation: spin 1s linear infinite;
+  }
+  
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
   }
   
   @media (max-width: 768px) {
     .import-export-container {
       flex-direction: column;
+    }
+    
+    .sync-status-bar {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 8px;
     }
   }

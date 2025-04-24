@@ -1,7 +1,6 @@
 // src/context/FlashcardContext.js
 
-import React, { createContext, useState, useEffect } from 'react';
-import flashcards from '../utils/flashcardData';
+import React, { createContext, useState, useEffect, useCallback } from 'react';
 import { auth, db } from '../utils/firebase';
 import { 
   collection, 
@@ -10,10 +9,13 @@ import {
   addDoc, 
   updateDoc, 
   doc, 
-  setDoc, 
-  onSnapshot,
+  deleteDoc,
   where,
-  deleteDoc
+  writeBatch,
+  serverTimestamp,
+  orderBy,
+  limit,
+  getDoc
 } from 'firebase/firestore';
 import { 
   createUserWithEmailAndPassword, 
@@ -40,6 +42,10 @@ export const FlashcardProvider = ({ children }) => {
     unknown: 0,
     reviewed: 0
   });
+  
+  // Additional state for sync management
+  const [syncStatus, setSyncStatus] = useState('idle'); // 'idle', 'syncing', 'error'
+  const [lastSyncTime, setLastSyncTime] = useState(null);
 
   // Combine loading states for the app
   const loading = authLoading || cardsLoading;
@@ -54,170 +60,62 @@ export const FlashcardProvider = ({ children }) => {
     return () => unsubscribe();
   }, []);
 
-// Load flashcards from Firestore if user is authenticated
-useEffect(() => {
-    // Clear cards when user logs out
+  // Load flashcards from Firestore if user is authenticated
+  // This function uses a more reliable approach to fetch data
+  const loadUserCards = useCallback(async () => {
     if (!user) {
       setCards([]);
       return;
     }
-  
-    const loadCards = async () => {
-      try {
-        setCardsLoading(true);
-        
-        // Get user's flashcards
-        const q = query(collection(db, 'flashcards'), where('userId', '==', user.uid));
-        const snapshot = await getDocs(q);
-        
-        // Map docs to cards
-        const flashcardsData = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        }));
-        
-        console.log(`Initial load: Found ${flashcardsData.length} total cards`);
-        
-        // Deduplicate cards by checking content
-        const uniqueContentMap = new Map();
-        const duplicates = [];
-        
-        flashcardsData.forEach(card => {
-          // Create a content key that represents the card's unique content
-          const contentKey = `${card.front}::${card.back}`;
-          
-          if (!uniqueContentMap.has(contentKey)) {
-            uniqueContentMap.set(contentKey, card);
-          } else {
-            duplicates.push(card.id);
-          }
-        });
-        
-        const uniqueCards = Array.from(uniqueContentMap.values());
-        
-        console.log(`Found ${duplicates.length} duplicate cards`);
-        console.log(`Keeping ${uniqueCards.length} unique cards`);
-        
-        if (duplicates.length > 0) {
-          console.log("Duplicate IDs:", duplicates);
-          
-          // Optionally delete the duplicates
-          for (const duplicateId of duplicates) {
-            try {
-              await deleteDoc(doc(db, 'flashcards', duplicateId));
-              console.log(`Deleted duplicate card ${duplicateId}`);
-            } catch (e) {
-              console.error(`Failed to delete duplicate ${duplicateId}:`, e);
-            }
-          }
-        }
-        
-        setCards(uniqueCards);
-        
-        if (uniqueCards.length === 0) {
-          console.log("No cards found, user will need to import cards");
-        }
-      } catch (error) {
-        console.error("Error loading flashcards:", error);
-      } finally {
-        setCardsLoading(false);
-      }
-    };
-  
-    loadCards();
-    
-    // We're not using onSnapshot for real-time updates anymore
-    // as it might be contributing to the duplication problem
-    return () => {}; // No cleanup needed
-  }, [user]);
-
-  // Initialize user's flashcards in Firestore
-  const initializeUserFlashcards = async () => {
-    // We'll disable automatic initialization of flashcards
-    console.log("New user detected, but we'll let them import their own cards");
-    setCards([]);
-    return;
-    
-    // The code below is commented out to prevent auto-loading default cards
-    /*
-    try {
-      console.log("Initializing default flashcards for new user");
-      // Add userId to each card
-      const userFlashcards = flashcards.map(card => ({
-        ...card,
-        userId: user.uid,
-        known: false,
-        timesReviewed: 0,
-        lastReviewed: null
-      }));
-      
-      // Batch add cards to Firestore
-      const addedCards = await Promise.all(
-        userFlashcards.map(async (card) => {
-          const { id, ...cardWithoutId } = card; // Remove local ID
-          const docRef = await addDoc(collection(db, 'flashcards'), cardWithoutId);
-          return { id: docRef.id, ...cardWithoutId };
-        })
-      );
-      
-      setCards(addedCards);
-      console.log(`Initialized ${addedCards.length} default cards for new user`);
-    } catch (error) {
-      console.error("Error initializing flashcards:", error);
-    }
-    */
-  };
-
-  // Add this function to your FlashcardContext.js
-  const clearCards = async () => {
-    if (!user) {
-      console.error("No user logged in - cannot clear cards");
-      return false;
-    }
     
     try {
       setCardsLoading(true);
-      console.log("Starting to clear cards...");
+      setSyncStatus('syncing');
       
-      // Delete all user's cards from Firestore in batches
-      const q = query(collection(db, 'flashcards'), where('userId', '==', user.uid));
+      // Get user's flashcards, ordered by creation time to ensure consistent ordering
+      const q = query(
+        collection(db, 'flashcards'), 
+        where('userId', '==', user.uid),
+        orderBy('createdAt', 'asc')
+      );
+      
       const snapshot = await getDocs(q);
       
-      console.log(`Found ${snapshot.docs.length} cards to delete`);
+      // Map docs to cards
+      const flashcardsData = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        // Ensure timestamp fields are properly serialized
+        lastReviewed: doc.data().lastReviewed ? doc.data().lastReviewed.toDate().toISOString() : null,
+        createdAt: doc.data().createdAt ? doc.data().createdAt.toDate().toISOString() : new Date().toISOString()
+      }));
       
-      // Delete in smaller batches to avoid timeouts
-      const batchSize = 100;
-      const batches = Math.ceil(snapshot.docs.length / batchSize);
+      console.log(`Loaded ${flashcardsData.length} cards from Firestore`);
       
-      for (let i = 0; i < batches; i++) {
-        const start = i * batchSize;
-        const end = Math.min(start + batchSize, snapshot.docs.length);
-        console.log(`Deleting batch ${i+1}/${batches} (cards ${start}-${end-1})`);
-        
-        await Promise.all(
-          snapshot.docs.slice(start, end).map(doc => deleteDoc(doc.ref))
-        );
+      setCards(flashcardsData);
+      setLastSyncTime(new Date().toISOString());
+      setSyncStatus('idle');
+      
+      if (flashcardsData.length === 0) {
+        console.log("No cards found, user will need to import cards");
       }
-      
-      // Clear local state
-      setCards([]);
-      setCurrentCardIndex(0);
-      console.log("All cards have been cleared successfully");
-      
-      return true;
     } catch (error) {
-      console.error('Error clearing cards:', error);
-      alert(`Failed to clear cards: ${error.message}`);
-      return false;
+      console.error("Error loading flashcards:", error);
+      setSyncStatus('error');
     } finally {
       setCardsLoading(false);
     }
-  };
+  }, [user]);
 
-  // Update stats whenever cards change
+  useEffect(() => {
+    if (user) {
+      loadUserCards();
+    }
+  }, [user, loadUserCards]);
+
+  // Update local stats whenever cards change
   useEffect(() => {
     if (Array.isArray(cards) && cards.length > 0) {
-      // Update stats with counting unique cards only
       setStats({
         total: cards.length,
         known: cards.filter(card => card.known).length,
@@ -250,7 +148,7 @@ useEffect(() => {
         case 'auth/weak-password':
           throw new Error('Password should be at least 6 characters.');
         default:
-          throw new Error('Failed to create account. Please try again.');
+          throw new Error(`Failed to create account: ${error.message}`);
       }
     }
   };
@@ -272,7 +170,7 @@ useEffect(() => {
         case 'auth/too-many-requests':
           throw new Error('Too many unsuccessful login attempts. Please try again later.');
         default:
-          throw new Error('Failed to sign in. Please try again.');
+          throw new Error(`Failed to sign in: ${error.message}`);
       }
     }
   };
@@ -283,8 +181,10 @@ useEffect(() => {
       // Reset state after logout
       setCards([]);
       setCurrentCardIndex(0);
+      setSyncStatus('idle');
+      setLastSyncTime(null);
     } catch (error) {
-      throw new Error('Failed to sign out. Please try again.');
+      throw new Error(`Failed to sign out: ${error.message}`);
     }
   };
 
@@ -293,33 +193,57 @@ useEffect(() => {
     if (!user) return;
     
     try {
+      setSyncStatus('syncing');
+      
+      // First update local state for immediate UI feedback
       const updatedCards = cards.map(card => 
         card.id === id 
           ? { 
               ...card, 
               known: isKnown, 
               lastReviewed: new Date().toISOString(),
-              timesReviewed: (card.timesReviewed || 0) + 1
+              timesReviewed: (card.timesReviewed || 0) + 1,
+              lastModified: new Date().toISOString()
             } 
           : card
       );
 
       setCards(updatedCards);
 
-      // Update in Firestore
-      const updatedCard = updatedCards.find(card => card.id === id);
-      await updateDoc(doc(db, 'flashcards', id), {
-        known: isKnown,
-        lastReviewed: new Date().toISOString(),
-        timesReviewed: updatedCard.timesReviewed
-      });
+      // Then update in Firestore
+      const docRef = doc(db, 'flashcards', id);
+      
+      // First check if the document exists to prevent errors
+      const docSnapshot = await getDoc(docRef);
+      
+      if (docSnapshot.exists()) {
+        await updateDoc(docRef, {
+          known: isKnown,
+          lastReviewed: serverTimestamp(),
+          timesReviewed: updatedCards.find(card => card.id === id).timesReviewed,
+          lastModified: serverTimestamp()
+        });
+        
+        console.log(`Updated card ${id} status to ${isKnown ? 'known' : 'unknown'}`);
+        setLastSyncTime(new Date().toISOString());
+      } else {
+        console.error(`Card with ID ${id} does not exist in Firestore`);
+        // We should refresh all cards to ensure consistency
+        await loadUserCards();
+      }
+      
+      setSyncStatus('idle');
     } catch (error) {
-      console.error('Error updating card:', error);
+      console.error('Error updating card status:', error);
+      setSyncStatus('error');
+      
+      // Attempt to recover by reloading cards
+      await loadUserCards();
     }
   };
 
   // Function to get the next card based on study mode
-  const getNextCard = () => {
+  const getNextCard = useCallback(() => {
     if (!Array.isArray(cards) || cards.length === 0) {
       return null;
     }
@@ -342,16 +266,15 @@ useEffect(() => {
     }
     
     // If we're at the end, go back to the first card
-    if (currentCardIndex >= filteredCards.length - 1) {
-      setCurrentCardIndex(0);
-    } else {
-      setCurrentCardIndex(currentCardIndex + 1);
-    }
-  };
+    const newIndex = currentCardIndex >= filteredCards.length - 1 ? 0 : currentCardIndex + 1;
+    setCurrentCardIndex(newIndex);
+    
+    return filteredCards[newIndex];
+  }, [cards, currentCardIndex, studyMode]);
 
-  // Function to shuffle cards
-  const shuffleCards = () => {
-    if (!user || cards.length === 0) return;
+  // Function to shuffle cards with improved implementation
+  const shuffleCards = useCallback(() => {
+    if (!user || !Array.isArray(cards) || cards.length === 0) return;
     
     // Fisher-Yates shuffle algorithm
     const shuffledCards = [...cards];
@@ -363,44 +286,79 @@ useEffect(() => {
     // Update local state
     setCards(shuffledCards);
     setCurrentCardIndex(0);
-  };
+    
+    console.log('Cards shuffled successfully');
+  }, [cards, user]);
   
-  // Function to reset all cards to unknown
+  // Function to reset all cards to unknown with improved error handling
   const resetCards = async () => {
-    if (!user || cards.length === 0) return;
+    if (!user || !Array.isArray(cards) || cards.length === 0) return;
     
     try {
       setCardsLoading(true);
+      setSyncStatus('syncing');
       
+      // Use Firestore batched writes for better reliability
+      // Firestore has a limit of 500 operations per batch, so we might need multiple batches
+      const BATCH_SIZE = 450; // Stay well under the limit
+      
+      // Prepare all cards for reset
       const resetCardsData = cards.map(card => ({ 
         ...card, 
         known: false, 
         timesReviewed: 0, 
-        lastReviewed: null 
+        lastReviewed: null,
+        lastModified: new Date().toISOString()
       }));
       
+      // Update local state first for UI responsiveness
       setCards(resetCardsData);
       setCurrentCardIndex(0);
 
-      // Update in Firestore
-      await Promise.all(
-        resetCardsData.map(async (card) => {
-          await updateDoc(doc(db, 'flashcards', card.id), {
+      // Calculate how many batches we need
+      const batchCount = Math.ceil(resetCardsData.length / BATCH_SIZE);
+      
+      for (let i = 0; i < batchCount; i++) {
+        const batch = writeBatch(db);
+        const start = i * BATCH_SIZE;
+        const end = Math.min(start + BATCH_SIZE, resetCardsData.length);
+        
+        console.log(`Processing batch ${i + 1}/${batchCount} (cards ${start} to ${end - 1})`);
+        
+        // Add each card update to the batch
+        for (let j = start; j < end; j++) {
+          const card = resetCardsData[j];
+          const cardRef = doc(db, 'flashcards', card.id);
+          
+          batch.update(cardRef, {
             known: false,
             timesReviewed: 0,
-            lastReviewed: null
+            lastReviewed: null,
+            lastModified: serverTimestamp()
           });
-        })
-      );
+        }
+        
+        // Commit the batch
+        await batch.commit();
+        console.log(`Batch ${i + 1} committed successfully`);
+      }
+      
+      console.log('All cards reset successfully');
+      setLastSyncTime(new Date().toISOString());
+      setSyncStatus('idle');
     } catch (error) {
       console.error('Error resetting cards:', error);
+      setSyncStatus('error');
+      
+      // Attempt to recover by reloading cards
+      await loadUserCards();
     } finally {
       setCardsLoading(false);
     }
   };
 
   // Function to get the current card
-  const getCurrentCard = () => {
+  const getCurrentCard = useCallback(() => {
     if (!Array.isArray(cards) || cards.length === 0) {
       return null;
     }
@@ -426,115 +384,272 @@ useEffect(() => {
     const safeIndex = Math.min(currentCardIndex, filteredCards.length - 1);
     
     return filteredCards[safeIndex];
+  }, [cards, currentCardIndex, studyMode]);
+
+  // Completely revamped clearCards function for better reliability
+  const clearCards = async () => {
+    if (!user) {
+      console.error("No user logged in - cannot clear cards");
+      return false;
+    }
+    
+    try {
+      setCardsLoading(true);
+      setSyncStatus('syncing');
+      console.log("Starting to clear cards...");
+      
+      // First, get all user's cards
+      const q = query(collection(db, 'flashcards'), where('userId', '==', user.uid));
+      const snapshot = await getDocs(q);
+      
+      const cardCount = snapshot.docs.length;
+      console.log(`Found ${cardCount} cards to delete`);
+      
+      if (cardCount === 0) {
+        // Nothing to delete
+        setCards([]);
+        setCurrentCardIndex(0);
+        setSyncStatus('idle');
+        return true;
+      }
+      
+      // Delete in batches for better reliability
+      const BATCH_SIZE = 450; // Firestore batch limit is 500
+      const batchCount = Math.ceil(cardCount / BATCH_SIZE);
+      
+      for (let i = 0; i < batchCount; i++) {
+        const batch = writeBatch(db);
+        const start = i * BATCH_SIZE;
+        const end = Math.min(start + BATCH_SIZE, cardCount);
+        
+        console.log(`Processing delete batch ${i + 1}/${batchCount} (cards ${start} to ${end - 1})`);
+        
+        snapshot.docs.slice(start, end).forEach(docSnapshot => {
+          batch.delete(docSnapshot.ref);
+        });
+        
+        // Commit this batch
+        await batch.commit();
+        console.log(`Batch ${i + 1} deleted successfully`);
+      }
+      
+      // Clear local state
+      setCards([]);
+      setCurrentCardIndex(0);
+      setLastSyncTime(new Date().toISOString());
+      console.log("All cards have been cleared successfully");
+      
+      setSyncStatus('idle');
+      return true;
+    } catch (error) {
+      console.error('Error clearing cards:', error);
+      setSyncStatus('error');
+      alert(`Failed to clear cards: ${error.message}`);
+      return false;
+    } finally {
+      setCardsLoading(false);
+    }
   };
 
-  // Import/Export with Firebase integration
+  // Completely revamped import function for more reliability
   const importCards = async (importedCards) => {
     if (!user) {
       console.error("Import failed: No user logged in");
-      return;
+      throw new Error("You must be logged in to import cards");
+    }
+    
+    if (!Array.isArray(importedCards) || importedCards.length === 0) {
+      throw new Error("No valid cards to import");
     }
     
     try {
-      console.log("Starting import of", importedCards.length, "cards");
+      console.log(`Starting import of ${importedCards.length} cards`);
       setCardsLoading(true);
+      setSyncStatus('syncing');
       
-      // First, we'll clear any existing cards
-      await clearCards();
-      console.log("Cleared existing cards before import");
+      // Instead of clearing first (which could lead to data loss), we'll use a better approach:
+      // 1. Process all import cards to ensure they're valid
+      // 2. Create unique content identifiers to avoid duplicates
+      // 3. Add each card with proper metadata
       
-      // Create a map to detect duplicates in the import file itself
+      // First, deduplicate cards within the import set
       const uniqueImportMap = new Map();
-      const uniqueImportCards = [];
+      let dupeCount = 0;
       
-      importedCards.forEach((card, index) => {
-        const contentKey = `${card.front}::${card.back}`;
+      importedCards.forEach(card => {
+        // Validate card has required fields
+        if (!card.front || !card.back) {
+          console.warn("Skipping invalid card:", card);
+          return;
+        }
+        
+        const contentKey = `${card.front.trim()}::${card.back.trim()}`;
         
         if (!uniqueImportMap.has(contentKey)) {
           uniqueImportMap.set(contentKey, card);
-          uniqueImportCards.push(card);
         } else {
-          console.log(`Skipping duplicate in import file at index ${index}`);
+          dupeCount++;
         }
       });
       
-      console.log(`Found ${importedCards.length - uniqueImportCards.length} duplicates in import file`);
+      const uniqueImportCards = Array.from(uniqueImportMap.values());
+      console.log(`Found ${dupeCount} duplicates in import file`);
       console.log(`Preparing to add ${uniqueImportCards.length} unique cards`);
       
-      // Add user ID to each card
-      const cardsWithUserId = uniqueImportCards.map(card => ({
-        ...card,
-        userId: user.uid,
-        known: card.known || false,
-        timesReviewed: card.timesReviewed || 0,
-        lastReviewed: card.lastReviewed || null
-      }));
-      
-      // Create cards in batches to avoid timeouts
-      const batchSize = 100;
-      const batches = Math.ceil(cardsWithUserId.length / batchSize);
-      const addedCards = [];
-      
-      for (let i = 0; i < batches; i++) {
-        const start = i * batchSize;
-        const end = Math.min(start + batchSize, cardsWithUserId.length);
-        console.log(`Adding batch ${i+1}/${batches} (cards ${start}-${end-1})`);
-        
-        const batchResults = await Promise.all(
-          cardsWithUserId.slice(start, end).map(async (card) => {
-            try {
-              const { id, ...cardWithoutId } = card; // Remove existing ID
-              const docRef = await addDoc(collection(db, 'flashcards'), cardWithoutId);
-              return { id: docRef.id, ...cardWithoutId };
-            } catch (e) {
-              console.error("Error adding card:", e);
-              return null; // Return null for failed cards
-            }
-          })
-        );
-        
-        // Filter out any nulls from failed additions
-        const successfulAdds = batchResults.filter(card => card !== null);
-        addedCards.push(...successfulAdds);
+      if (uniqueImportCards.length === 0) {
+        throw new Error("No valid cards found in import file");
       }
       
-      console.log(`Successfully added ${addedCards.length} cards`);
-      setCards(addedCards);
-      setCurrentCardIndex(0);
+      // Now check against existing cards to avoid duplicates
+      // Get all existing cards
+      const q = query(collection(db, 'flashcards'), where('userId', '==', user.uid));
+      const snapshot = await getDocs(q);
       
-      return addedCards.length;
+      // Create a map of existing content keys
+      const existingContentMap = new Map();
+      snapshot.docs.forEach(doc => {
+        const data = doc.data();
+        const contentKey = `${data.front.trim()}::${data.back.trim()}`;
+        existingContentMap.set(contentKey, doc.id);
+      });
+      
+      // Separate cards into new and existing
+      const newCards = [];
+      const cardsToUpdate = [];
+      
+      uniqueImportCards.forEach(card => {
+        const contentKey = `${card.front.trim()}::${card.back.trim()}`;
+        
+        if (existingContentMap.has(contentKey)) {
+          // This card already exists, we'll update it
+          const existingId = existingContentMap.get(contentKey);
+          cardsToUpdate.push({
+            id: existingId,
+            ...card,
+            userId: user.uid,
+            known: card.known !== undefined ? Boolean(card.known) : false,
+            timesReviewed: card.timesReviewed || 0,
+            lastReviewed: card.lastReviewed || null,
+            lastModified: serverTimestamp()
+          });
+        } else {
+          // This is a new card
+          newCards.push({
+            ...card,
+            userId: user.uid,
+            known: card.known !== undefined ? Boolean(card.known) : false,
+            timesReviewed: card.timesReviewed || 0,
+            lastReviewed: card.lastReviewed || null,
+            createdAt: serverTimestamp(),
+            lastModified: serverTimestamp()
+          });
+        }
+      });
+      
+      console.log(`Found ${newCards.length} new cards to add`);
+      console.log(`Found ${cardsToUpdate.length} existing cards to update`);
+      
+      // Process in batches for better reliability
+      const BATCH_SIZE = 450;
+      
+      // Add new cards first
+      const addedCards = [];
+      if (newCards.length > 0) {
+        const addBatchCount = Math.ceil(newCards.length / BATCH_SIZE);
+        
+        for (let i = 0; i < addBatchCount; i++) {
+          const batch = writeBatch(db);
+          const start = i * BATCH_SIZE;
+          const end = Math.min(start + BATCH_SIZE, newCards.length);
+          
+          console.log(`Adding batch ${i + 1}/${addBatchCount} (cards ${start} to ${end - 1})`);
+          
+          const batchPromises = [];
+          
+          for (let j = start; j < end; j++) {
+            // For new cards, we need individual addDoc calls to get IDs
+            batchPromises.push(
+              addDoc(collection(db, 'flashcards'), newCards[j])
+                .then(docRef => ({
+                  id: docRef.id,
+                  ...newCards[j],
+                  // Convert timestamps to ISO strings for local state
+                  createdAt: new Date().toISOString(),
+                  lastModified: new Date().toISOString(),
+                  lastReviewed: newCards[j].lastReviewed
+                }))
+            );
+          }
+          
+          const batchResults = await Promise.all(batchPromises);
+          addedCards.push(...batchResults);
+          
+          console.log(`Added ${batchResults.length} cards in batch ${i + 1}`);
+        }
+      }
+      
+      // Then update existing cards if needed
+      const updatedCards = [];
+      if (cardsToUpdate.length > 0) {
+        const updateBatchCount = Math.ceil(cardsToUpdate.length / BATCH_SIZE);
+        
+        for (let i = 0; i < updateBatchCount; i++) {
+          const batch = writeBatch(db);
+          const start = i * BATCH_SIZE;
+          const end = Math.min(start + BATCH_SIZE, cardsToUpdate.length);
+          
+          console.log(`Updating batch ${i + 1}/${updateBatchCount} (cards ${start} to ${end - 1})`);
+          
+          for (let j = start; j < end; j++) {
+            const card = cardsToUpdate[j];
+            const { id, ...cardData } = card;
+            
+            const cardRef = doc(db, 'flashcards', id);
+            batch.update(cardRef, cardData);
+            
+            // Add to our updated cards with proper timestamp handling
+            updatedCards.push({
+              ...card,
+              lastModified: new Date().toISOString()
+            });
+          }
+          
+          await batch.commit();
+          console.log(`Updated ${end - start} cards in batch ${i + 1}`);
+        }
+      }
+      
+      // Now merge everything for our local state
+      const allProcessedCards = [...addedCards, ...updatedCards];
+      
+      // Reload to ensure consistency
+      await loadUserCards();
+      
+      console.log(`Import complete. Processed ${allProcessedCards.length} cards total.`);
+      setLastSyncTime(new Date().toISOString());
+      setSyncStatus('idle');
+      
+      return allProcessedCards.length;
     } catch (error) {
       console.error('Error importing cards:', error);
-      throw new Error('Failed to import cards. Please try again.');
+      setSyncStatus('error');
+      throw new Error(`Failed to import cards: ${error.message}`);
     } finally {
       setCardsLoading(false);
     }
   };
 
-  // Load a JSON deck of flashcards
-  const loadDeck = async (deckName) => {
+  // Force a refresh of cards from Firestore
+  const refreshCards = async () => {
     if (!user) return;
     
     try {
-      setCardsLoading(true);
-      
-      // In a real implementation, you would fetch the deck from a server
-      // For now, we'll simulate loading a new deck
-      
-      const response = await fetch(`/decks/${deckName}.json`);
-      if (!response.ok) {
-        throw new Error(`Failed to load deck: ${response.statusText}`);
-      }
-      
-      const deckData = await response.json();
-      
-      // Import the deck
-      await importCards(deckData);
+      console.log("Forcing refresh of cards from Firestore");
+      await loadUserCards();
+      return true;
     } catch (error) {
-      console.error('Error loading deck:', error);
-      throw new Error('Failed to load flashcard deck. Please try again.');
-    } finally {
-      setCardsLoading(false);
+      console.error("Error refreshing cards:", error);
+      return false;
     }
   };
 
@@ -556,8 +671,10 @@ useEffect(() => {
       loginUser,
       logoutUser,
       importCards,
-      loadDeck,
-      clearCards
+      clearCards,
+      refreshCards,
+      syncStatus,
+      lastSyncTime
     }}>
       {children}
     </FlashcardContext.Provider>
