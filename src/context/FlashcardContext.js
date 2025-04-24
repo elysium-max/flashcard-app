@@ -54,17 +54,17 @@ export const FlashcardProvider = ({ children }) => {
     return () => unsubscribe();
   }, []);
 
-  // Load flashcards from Firestore if user is authenticated
-  useEffect(() => {
+// Load flashcards from Firestore if user is authenticated
+useEffect(() => {
     // Clear cards when user logs out
     if (!user) {
       setCards([]);
       return;
     }
-
+  
     // Set loading state
     setCardsLoading(true);
-
+  
     // Set up real-time listener for user's flashcards
     const q = query(collection(db, 'flashcards'), where('userId', '==', user.uid));
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -73,7 +73,7 @@ export const FlashcardProvider = ({ children }) => {
         ...doc.data()
       }));
       
-      // FIX: Deduplicate cards by ID to prevent double-counting
+      // Deduplicate cards by ID to prevent double-counting
       const uniqueIds = new Set();
       const uniqueCards = [];
       
@@ -91,6 +91,7 @@ export const FlashcardProvider = ({ children }) => {
         console.log(`Loaded ${uniqueCards.length} unique cards (filtered from ${flashcardsData.length} total)`);
       } else {
         // If no cards exist for this user yet, initialize with default cards
+        console.log("No cards found, initializing with defaults");
         initializeUserFlashcards();
       }
       
@@ -99,13 +100,14 @@ export const FlashcardProvider = ({ children }) => {
       console.error("Error fetching flashcards:", error);
       setCardsLoading(false);
     });
-
+  
     return () => unsubscribe();
   }, [user]);
 
   // Initialize user's flashcards in Firestore
   const initializeUserFlashcards = async () => {
     try {
+      console.log("Initializing default flashcards for new user");
       // Add userId to each card
       const userFlashcards = flashcards.map(card => ({
         ...card,
@@ -125,8 +127,35 @@ export const FlashcardProvider = ({ children }) => {
       );
       
       setCards(addedCards);
+      console.log(`Initialized ${addedCards.length} default cards for new user`);
     } catch (error) {
       console.error("Error initializing flashcards:", error);
+    }
+  };
+
+  // Add this function to your FlashcardContext.js
+const clearCards = async () => {
+    if (!user) return;
+    
+    try {
+      setCardsLoading(true);
+      
+      // Delete all user's cards from Firestore
+      const q = query(collection(db, 'flashcards'), where('userId', '==', user.uid));
+      const snapshot = await getDocs(q);
+      await Promise.all(snapshot.docs.map(doc => deleteDoc(doc.ref)));
+      
+      // Clear local state
+      setCards([]);
+      setCurrentCardIndex(0);
+      console.log("All cards cleared");
+      
+      return true;
+    } catch (error) {
+      console.error('Error clearing cards:', error);
+      return false;
+    } finally {
+      setCardsLoading(false);
     }
   };
 
@@ -346,15 +375,21 @@ export const FlashcardProvider = ({ children }) => {
 
   // Import/Export with Firebase integration
   const importCards = async (importedCards) => {
-    if (!user) return;
+    if (!user) {
+      console.error("Import failed: No user logged in");
+      return;
+    }
     
     try {
+      console.log("Starting import of", importedCards.length, "cards");
       setCardsLoading(true);
       
       // Delete existing cards first
       const q = query(collection(db, 'flashcards'), where('userId', '==', user.uid));
       const snapshot = await getDocs(q);
+      console.log("Found", snapshot.docs.length, "existing cards to delete");
       await Promise.all(snapshot.docs.map(doc => deleteDoc(doc.ref)));
+      console.log("Deleted existing cards");
       
       // Add imported cards with user ID
       const cardsWithUserId = importedCards.map(card => ({
@@ -365,14 +400,23 @@ export const FlashcardProvider = ({ children }) => {
         lastReviewed: card.lastReviewed || null
       }));
       
+      console.log("Prepared", cardsWithUserId.length, "cards with user ID");
+      
       const addedCards = await Promise.all(
-        cardsWithUserId.map(async (card) => {
-          const { id, ...cardWithoutId } = card; // Remove existing ID
-          const docRef = await addDoc(collection(db, 'flashcards'), cardWithoutId);
-          return { id: docRef.id, ...cardWithoutId };
+        cardsWithUserId.map(async (card, index) => {
+          try {
+            const { id, ...cardWithoutId } = card; // Remove existing ID
+            const docRef = await addDoc(collection(db, 'flashcards'), cardWithoutId);
+            if (index % 100 === 0) console.log(`Added ${index} cards so far`);
+            return { id: docRef.id, ...cardWithoutId };
+          } catch (e) {
+            console.error("Error adding card:", e, card);
+            throw e;
+          }
         })
       );
       
+      console.log("Successfully added", addedCards.length, "cards");
       setCards(addedCards);
       setCurrentCardIndex(0);
     } catch (error) {
@@ -428,7 +472,8 @@ export const FlashcardProvider = ({ children }) => {
       loginUser,
       logoutUser,
       importCards,
-      loadDeck
+      loadDeck,
+      clearCards
     }}>
       {children}
     </FlashcardContext.Provider>

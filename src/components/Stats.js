@@ -6,7 +6,7 @@ import '../styles/Stats.css';
 import { FaCheck, FaTimes, FaSync, FaDownload, FaUpload } from 'react-icons/fa';
 
 const Stats = () => {
-  const { stats, resetCards, cards, importCards } = useContext(FlashcardContext);
+  const { stats, resetCards, cards, importCards, clearCards } = useContext(FlashcardContext);
   const fileInputRef = useRef(null);
   
   // Calculate percentage of known cards
@@ -129,21 +129,34 @@ const Stats = () => {
         </div>
       </div>
       
-      <div className="button-container">
-        <button className="reset-btn" onClick={resetCards}>
-          <FaSync /> Reset all cards
-        </button>
-        
-        <div className="import-export-container">
-          <button className="export-btn" onClick={handleExport}>
-            <FaDownload /> Export Data
-          </button>
-          
-          <button className="import-btn" onClick={triggerFileInput}>
-            <FaUpload /> Import Data
-          </button>
-        </div>
-      </div>
+      // In Stats.js, add this to your button container
+<div className="button-container">
+  <button className="reset-btn" onClick={resetCards}>
+    <FaSync /> Reset all cards
+  </button>
+  
+  <button 
+    className="reset-btn" 
+    onClick={() => {
+      if (window.confirm('Are you sure you want to delete all cards? This cannot be undone unless you have an export.')) {
+        clearCards();
+      }
+    }}
+    style={{ backgroundColor: '#e74c3c', marginTop: '1rem' }}
+  >
+    <FaTimes /> Clear All Cards
+  </button>
+  
+  <div className="import-export-container">
+    <button className="export-btn" onClick={handleExport}>
+      <FaDownload /> Export Data
+    </button>
+    
+    <button className="import-btn" onClick={triggerFileInput}>
+      <FaUpload /> Import Data
+    </button>
+  </div>
+</div>
       
       <input 
         type="file" 
