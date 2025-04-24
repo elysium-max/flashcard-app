@@ -1,4 +1,4 @@
-// src/utils/CardFormatter.js - Updated with batch processing
+// src/utils/CardFormatter.js - Updated with improved formatting
 
 import { db } from '../utils/firebase';
 import { doc, updateDoc, writeBatch } from 'firebase/firestore';
@@ -40,39 +40,88 @@ const reformatCardBack = (backText) => {
     backText = backText.substring(0, grammarStart).trim();
   }
   
-  // Try to separate translation from example
-  // Pattern 1: Look for a sentence starting with capital letter after the main translation
-  const sentencePattern = /^([^.!?]+)[.!?]\s+([A-Z].+)$/;
+  // Improved pattern matching for separating translation from example
+  
+  // Pattern 1: Look for a complete sentence starting with capital letter
+  // This captures cases like "to throw out. I need to throw out these old newspapers."
+  const sentencePattern = /^([^.!?]+[.!?])\s+([A-Z].+)$/;
   const sentenceMatch = backText.match(sentencePattern);
   
   if (sentenceMatch) {
     translation = sentenceMatch[1].trim();
     example = sentenceMatch[2].trim();
   } else {
-    // Pattern 2: Find the translation prefix "to " followed by the rest as example
-    const translationPattern = /^(to [^.!?]+)(.+)?$/;
-    const translationMatch = backText.match(translationPattern);
+    // Pattern 2: Look for "to verb" with multiple sentences
+    // This captures cases like "to throw out I need to throw out these old newspapers."
+    const verbWithExamplePattern = /^(to [a-zA-Z\s]+(?:się)?)\s+([A-Z][^.!?]+[.!?].*)$/i;
+    const verbMatch = backText.match(verbWithExamplePattern);
     
-    if (translationMatch) {
-      translation = translationMatch[1].trim();
-      if (translationMatch[2]) {
-        example = translationMatch[2].trim();
-      }
+    if (verbMatch) {
+      translation = verbMatch[1].trim();
+      example = verbMatch[2].trim();
     } else {
-      // Fallback: just use the whole text as translation
-      translation = backText;
+      // Pattern 3: Split at the first capital letter after the initial part
+      // This is more aggressive but catches more cases
+      const splitAfterTranslationPattern = /^([^A-Z]+)\s+([A-Z].+)$/;
+      const splitMatch = backText.match(splitAfterTranslationPattern);
+      
+      if (splitMatch) {
+        translation = splitMatch[1].trim();
+        example = splitMatch[2].trim();
+      } else {
+        // Fallback: just use the whole text as translation
+        translation = backText;
+      }
     }
+  }
+  
+  // Ensure translation ends with a period if it doesn't have punctuation
+  if (translation && !/[.!?]$/.test(translation)) {
+    translation += '.';
   }
   
   // Combine the reformatted sections with double newlines
   return `${translation}${example ? '\n\n' + example : ''}${grammar ? '\n\n' + grammar : ''}`;
 };
 
+// NEW: Function to reformat front content to ensure example sentences appear
+const reformatFrontContent = (frontText) => {
+  if (!frontText) return frontText;
+  
+  // If it already has proper formatting with periods, don't change it
+  if (/\.\s+[A-Z]/.test(frontText)) {
+    return frontText;
+  }
+  
+  // Check if there might be an example sentence without proper separation
+  // Look for patterns like "wyrzucać (imp) Muszę wyrzucić te stare gazety."
+  const examplePattern = /^([a-ząćęłńóśźż]+(?:\s+się)?(?:\s+\([^)]+\))?)\s+([A-Z].+)$/i;
+  const match = frontText.match(examplePattern);
+  
+  if (match) {
+    const word = match[1].trim();
+    const example = match[2].trim();
+    
+    // Ensure the word ends with a period
+    const formattedWord = /[.!?]$/.test(word) ? word : word + '.';
+    
+    // Ensure the example has proper punctuation
+    const formattedExample = /[.!?]$/.test(example) ? example : example + '.';
+    
+    // Combine with a space
+    return `${formattedWord} ${formattedExample}`;
+  }
+  
+  // If no example found, just ensure the word has a period
+  return /[.!?]$/.test(frontText) ? frontText : frontText + '.';
+};
+
 // Function to process and reformat a batch of cards
 const reformatCards = (cards) => {
   return cards.map(card => ({
     ...card,
-    back: reformatCardBack(card.back)
+    back: reformatCardBack(card.back),
+    front: reformatFrontContent(card.front) // Now also reformatting front content
   }));
 };
 
@@ -100,7 +149,7 @@ const magicFixCards = async (cards, setCards, setSyncStatus, setImportStatus) =>
     
     // Count how many cards actually need changes
     const cardsToUpdate = reformattedCards.filter((card, index) => 
-      card.back !== cards[index].back
+      card.back !== cards[index].back || card.front !== cards[index].front
     );
     
     setImportStatus(`Found ${cardsToUpdate.length} cards that need formatting`);
@@ -137,11 +186,14 @@ const magicFixCards = async (cards, setCards, setSyncStatus, setImportStatus) =>
           const reformattedCard = reformattedCards[j];
           const originalCard = cards[j];
           
-          // Only update if the card actually changed
-          if (reformattedCard.back !== originalCard.back) {
+          // Only update if either front or back changed
+          if (reformattedCard.back !== originalCard.back || 
+              reformattedCard.front !== originalCard.front) {
+            
             const cardRef = doc(db, 'flashcards', reformattedCard.id);
             batch.update(cardRef, { 
               back: reformattedCard.back,
+              front: reformattedCard.front, // Also update front content
               lastModified: new Date() // Add timestamp to track the change
             });
             batchUpdateCount++;
@@ -239,4 +291,4 @@ const exportReformattedCards = (cards) => {
   return reformattedCards;
 };
 
-export { reformatCardBack, reformatCards, exportReformattedCards, magicFixCards };
+export { reformatCardBack, reformatCards, exportReformattedCards, magicFixCards, reformatFrontContent };

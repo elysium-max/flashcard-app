@@ -1,4 +1,4 @@
-/* src/styles/Flashcard.css - Enhanced with sync indicators */
+/* src/styles/Flashcard.css - Complete file with enhanced styling */
 
 .flashcard-container {
     width: 100%;
@@ -81,20 +81,19 @@
     overflow-y: auto;
   }
   
+  /* Front-side vocabulary word (Polish) */
   .vocab-word {
     font-weight: bold;
     font-size: 2.5rem;
-    margin-bottom: 2rem;
+    margin-bottom: 1.5rem;
     color: white;
     word-wrap: break-word;
     max-width: 100%;
     text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
     text-align: center;
-    
-    /* Ensure "się" stays on the same line */
-    white-space: nowrap;
   }
   
+  /* Front-side example sentence (Polish) */
   .example {
     font-style: italic;
     font-size: 1.5rem;
@@ -102,35 +101,42 @@
     word-wrap: break-word;
     max-width: 100%;
     line-height: 1.4;
-    margin-top: 1rem;
+    margin-top: 1.5rem;
     text-align: center;
+    padding: 0.5rem 1rem;
+    background-color: rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
   }
   
+  /* Back-side translation (English) */
   .translation {
     font-weight: bold;
     font-size: 2rem;
-    margin-bottom: 1.5rem;
+    margin-bottom: 1rem;
     color: #3498db;
     word-wrap: break-word;
     max-width: 100%;
     text-align: center;
   }
   
+  /* Back-side example sentence (English) */
   .translated-example {
     font-style: italic;
     font-size: 1.4rem;
-    margin-top: 1rem;
-    margin-bottom: 2rem;
+    margin-top: 1.5rem;
+    margin-bottom: 1.5rem;
     color: #555;
     word-wrap: break-word;
     max-width: 100%;
     line-height: 1.4;
     text-align: center;
-    padding: 0.5rem 1rem;
+    padding: 0.75rem 1.25rem;
     background-color: rgba(52, 152, 219, 0.05);
     border-radius: 8px;
+    border-left: 3px solid rgba(52, 152, 219, 0.3);
   }
   
+  /* Grammar notes section */
   .grammar-notes {
     font-size: 1.1rem;
     text-align: left;
@@ -144,7 +150,7 @@
     overflow-wrap: break-word;
     overflow: auto;
     line-height: 1.6;
-    margin-top: 1rem;
+    margin-top: 1.5rem;
   }
   
   .card-hint {

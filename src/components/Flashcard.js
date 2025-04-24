@@ -35,19 +35,27 @@ const Flashcard = () => {
     }
   }, [cards, studyMode, currentCard, getNextCard]);
   
-  // Format the front side of the card - Improved version for handling "się" verbs
+  // Format the front side of the card - Improved version for handling "się" verbs and example sentences
   const formatFrontContent = (frontText) => {
     if (!frontText) return <div className="card-content"><div className="vocab-word">No content</div></div>;
     
     try {
-      // Split by period+space to separate the verb from example sentence
-      const parts = frontText.split(/\.\s+/);
+      // Split by period+space or period+newline to separate the verb from example sentence
+      const parts = frontText.split(/\.\s+|\.\n+/);
       
-      // The first part should contain the verb and aspect info
-      let vocabPart = parts[0];
+      // The first part should contain the verb or vocabulary word
+      let vocabPart = parts[0].trim();
       
-      // Extract example sentence if there is one
-      let example = parts.length > 1 ? parts.slice(1).join('. ') : '';
+      // Collect all additional parts as example sentences
+      let example = '';
+      if (parts.length > 1) {
+        example = parts.slice(1).join('. ').trim();
+        
+        // Add period to example if needed
+        if (example && !example.endsWith('.') && !example.endsWith('!') && !example.endsWith('?')) {
+          example += '.';
+        }
+      }
       
       // Check if we have parentheses in the vocab part, which likely indicate aspect info
       const aspectMatch = vocabPart.match(/^([\wąćęłńóśźż]+(?: się)?)(\s+\([^)]+\))?/);
@@ -57,9 +65,9 @@ const Flashcard = () => {
         vocabWord = aspectMatch[0]; // This gives us the verb with aspect info
       }
       
-      // Add period to example if needed
-      if (example && !example.endsWith('.')) {
-        example += '.';
+      // Ensure vocab word has a period if not already
+      if (!vocabWord.endsWith('.') && !vocabWord.endsWith('!') && !vocabWord.endsWith('?')) {
+        vocabWord += '.';
       }
       
       return (
@@ -84,6 +92,26 @@ const Flashcard = () => {
     if (!backText) return <div className="card-content"><div className="translation">No content</div></div>;
     
     try {
+      // Check if content is already formatted with newlines
+      if (backText.includes('\n\n')) {
+        // Split by double newlines to separate formatted sections
+        const sections = backText.split('\n\n');
+        
+        const translation = sections[0];
+        const example = sections.length > 1 ? sections[1] : '';
+        const grammar = sections.length > 2 ? sections[2] : '';
+        
+        return (
+          <div className="card-content">
+            <div className="translation">{translation}</div>
+            {example && <div className="translated-example">{example}</div>}
+            {grammar && <div className="grammar-notes">{grammar}</div>}
+          </div>
+        );
+      }
+      
+      // For unformatted content, use regular expressions to separate sections
+      
       // Step 1: Split the text by periods that are followed by space and an uppercase letter
       // This helps separate the translation from example sentence
       const segments = backText.split(/\.\s+(?=[A-Z])/);
@@ -152,6 +180,11 @@ const Flashcard = () => {
       
       // Trim any trailing periods from translation
       translation = translation.replace(/\.\s*$/, '');
+      
+      // Add period if needed
+      if (!translation.endsWith('.') && !translation.endsWith('!') && !translation.endsWith('?')) {
+        translation += '.';
+      }
       
       return (
         <div className="card-content">
