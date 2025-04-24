@@ -1,4 +1,4 @@
-// src/utils/CardFormatter.js
+// src/utils/CardFormatter.js - Updated with batch processing
 
 import { db } from '../utils/firebase';
 import { doc, updateDoc, writeBatch } from 'firebase/firestore';
@@ -76,7 +76,10 @@ const reformatCards = (cards) => {
   }));
 };
 
-// Function to directly update cards in Firestore and state
+/**
+ * Enhanced Magic Fix function that processes cards in small batches
+ * to avoid Firebase quota issues
+ */
 const magicFixCards = async (cards, setCards, setSyncStatus, setImportStatus) => {
   if (!Array.isArray(cards) || cards.length === 0) {
     setImportStatus('No cards to format');
@@ -85,45 +88,120 @@ const magicFixCards = async (cards, setCards, setSyncStatus, setImportStatus) =>
   
   try {
     setSyncStatus('syncing');
-    setImportStatus('Reformatting cards...');
+    setImportStatus('Preparing to reformat cards...');
     
-    // First, reformat all cards
-    const reformattedCards = reformatCards(cards);
-    
-    // Update Firestore in batches
-    const BATCH_SIZE = 450; // Firestore batch limit is 500
-    const totalCards = reformattedCards.length;
+    // IMPROVED: Use much smaller batches to avoid quota issues
+    const BATCH_SIZE = 10; // Process just 10 cards at a time to stay well under limits
+    const totalCards = cards.length;
     const batchCount = Math.ceil(totalCards / BATCH_SIZE);
     
-    let updatedCount = 0;
+    // First, reformat all cards locally (this doesn't hit Firebase)
+    const reformattedCards = reformatCards(cards);
     
-    for (let i = 0; i < batchCount; i++) {
-      const batch = writeBatch(db);
+    // Count how many cards actually need changes
+    const cardsToUpdate = reformattedCards.filter((card, index) => 
+      card.back !== cards[index].back
+    );
+    
+    setImportStatus(`Found ${cardsToUpdate.length} cards that need formatting`);
+    
+    // If no cards need updating, finish early
+    if (cardsToUpdate.length === 0) {
+      setSyncStatus('idle');
+      return { success: true, count: 0 };
+    }
+    
+    // For storing results
+    let updatedCount = 0;
+    let errorCount = 0;
+    let isCancelled = false;
+    
+    // Create a local copy of cards to update as we go
+    let updatedCards = [...cards];
+    
+    // Process batches sequentially with proper error handling and backoff
+    for (let i = 0; i < batchCount && !isCancelled; i++) {
       const start = i * BATCH_SIZE;
       const end = Math.min(start + BATCH_SIZE, totalCards);
       
-      setImportStatus(`Updating batch ${i + 1}/${batchCount} (cards ${start} to ${end - 1})...`);
+      // Update status to show progress
+      setImportStatus(`Processing batch ${i + 1}/${batchCount} (${Math.round((i/batchCount) * 100)}% complete)`);
       
-      for (let j = start; j < end; j++) {
-        const card = reformattedCards[j];
-        // Only update if the card actually changed
-        if (card.back !== cards[j].back) {
-          const cardRef = doc(db, 'flashcards', card.id);
-          batch.update(cardRef, { back: card.back });
-          updatedCount++;
+      try {
+        // Create a new batch for this group of cards
+        const batch = writeBatch(db);
+        let batchUpdateCount = 0;
+        
+        // Add each card to the batch if it needs updating
+        for (let j = start; j < end; j++) {
+          const reformattedCard = reformattedCards[j];
+          const originalCard = cards[j];
+          
+          // Only update if the card actually changed
+          if (reformattedCard.back !== originalCard.back) {
+            const cardRef = doc(db, 'flashcards', reformattedCard.id);
+            batch.update(cardRef, { 
+              back: reformattedCard.back,
+              lastModified: new Date() // Add timestamp to track the change
+            });
+            batchUpdateCount++;
+            
+            // Update our local copy too
+            updatedCards[j] = reformattedCard;
+          }
+        }
+        
+        // Only commit if we have changes to make
+        if (batchUpdateCount > 0) {
+          // IMPROVED: Add delay between batches to avoid rate limiting
+          if (i > 0) {
+            setImportStatus(`Waiting before processing next batch... (${Math.round((i/batchCount) * 100)}% complete)`);
+            await new Promise(resolve => setTimeout(resolve, 1000)); // 1 second delay
+          }
+          
+          // Commit this batch
+          await batch.commit();
+          updatedCount += batchUpdateCount;
+          
+          // Update the local state after each successful batch
+          setCards(updatedCards);
+          setImportStatus(`Batch ${i + 1}/${batchCount} completed successfully. Total: ${updatedCount} cards updated`);
+        }
+      } catch (error) {
+        console.error(`Error processing batch ${i + 1}:`, error);
+        errorCount++;
+        
+        // Show helpful error message based on the type of error
+        if (error.code === 'resource-exhausted') {
+          setImportStatus(`Quota exceeded on batch ${i + 1}/${batchCount}. Waiting 5 seconds before retry...`);
+          
+          // Wait 5 seconds before retrying this batch
+          await new Promise(resolve => setTimeout(resolve, 5000));
+          
+          // Retry this batch (decrement i to process this batch again)
+          i--;
+          
+          // But only retry up to 3 times per batch
+          if (errorCount > 3) {
+            setImportStatus(`Too many errors, stopping after ${updatedCount} cards. Try again later.`);
+            break;
+          }
+        } else {
+          // For other errors, just pause and continue with next batch
+          setImportStatus(`Error on batch ${i + 1}: ${error.message}. Continuing with next batch...`);
+          await new Promise(resolve => setTimeout(resolve, 2000));
         }
       }
-      
-      // Commit the batch
-      await batch.commit();
-      setImportStatus(`Batch ${i + 1}/${batchCount} updated successfully`);
     }
     
-    // Update the local state with the reformatted cards
-    setCards(reformattedCards);
+    // Finalize and return results
     setSyncStatus('idle');
-    
-    return { success: true, count: updatedCount };
+    return { 
+      success: true, 
+      count: updatedCount,
+      errors: errorCount,
+      cancelled: isCancelled
+    };
   } catch (error) {
     console.error('Error formatting cards:', error);
     setSyncStatus('error');

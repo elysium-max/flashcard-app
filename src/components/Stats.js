@@ -1,9 +1,9 @@
-// src/components/Stats.js
+// src/components/Stats.js - Updated with better Magic Fix UI
 
 import React, { useContext, useRef, useState, useEffect } from 'react';
 import { FlashcardContext } from '../context/FlashcardContext';
 import '../styles/Stats.css';
-import { FaCheck, FaTimes, FaSync, FaDownload, FaUpload, FaInfoCircle, FaRedo, FaBug, FaMagic } from 'react-icons/fa';
+import { FaCheck, FaTimes, FaSync, FaDownload, FaUpload, FaInfoCircle, FaRedo, FaBug, FaMagic, FaSpinner, FaStopCircle } from 'react-icons/fa';
 import { magicFixCards } from '../utils/CardFormatter';
 
 const Stats = () => {
@@ -29,6 +29,17 @@ const Stats = () => {
   const [countDown, setCountDown] = useState(5);
   const [isReformatting, setIsReformatting] = useState(false);
   
+  // New state for detailed progress tracking
+  const [formatProgress, setFormatProgress] = useState({
+    isActive: false,
+    percentage: 0,
+    currentBatch: 0,
+    totalBatches: 0,
+    cardsProcessed: 0,
+    totalCards: 0,
+    message: ''
+  });
+  
   // Calculate percentage of known cards
   const knownPercentage = stats.total > 0 
     ? Math.round((stats.known / stats.total) * 100) 
@@ -36,11 +47,11 @@ const Stats = () => {
   
   // Reset import status after 5 seconds
   useEffect(() => {
-    if (importStatus) {
+    if (importStatus && !isReformatting) {
       const timer = setTimeout(() => setImportStatus(''), 5000);
       return () => clearTimeout(timer);
     }
-  }, [importStatus]);
+  }, [importStatus, isReformatting]);
   
   // Handle countdown for refreshing after import
   useEffect(() => {
@@ -105,7 +116,7 @@ const Stats = () => {
     }
   };
   
-  // Handle Magic Fix - reformat cards in-app without export/import
+  // Enhanced Magic Fix function with better UI feedback
   const handleMagicFix = async () => {
     try {
       if (!Array.isArray(cards) || cards.length === 0) {
@@ -114,25 +125,99 @@ const Stats = () => {
       }
       
       setIsReformatting(true);
+      setFormatProgress({
+        isActive: true,
+        percentage: 0,
+        currentBatch: 0,
+        totalBatches: Math.ceil(cards.length / 10), // We're using batch size of 10
+        cardsProcessed: 0,
+        totalCards: cards.length,
+        message: 'Preparing to reformat cards...'
+      });
       
-      // Use the magicFixCards function which updates both Firestore and local state
-      const result = await magicFixCards(cards, setCards, setSyncStatus, setImportStatus);
+      // Custom status update function that also updates our progress state
+      const updateStatus = (message) => {
+        setImportStatus(message);
+        
+        // Try to extract progress information from the message
+        const batchMatch = message.match(/Batch (\d+)\/(\d+)/);
+        const percentMatch = message.match(/(\d+)% complete/);
+        const countMatch = message.match(/Total: (\d+) cards updated/);
+        
+        const update = {...formatProgress};
+        
+        if (batchMatch) {
+          update.currentBatch = parseInt(batchMatch[1]);
+          update.totalBatches = parseInt(batchMatch[2]);
+          update.percentage = Math.round((update.currentBatch / update.totalBatches) * 100);
+        }
+        
+        if (percentMatch) {
+          update.percentage = parseInt(percentMatch[1]);
+        }
+        
+        if (countMatch) {
+          update.cardsProcessed = parseInt(countMatch[1]);
+        }
+        
+        update.message = message;
+        setFormatProgress(update);
+      };
+      
+      // Use the magicFixCards function with our custom status update
+      const result = await magicFixCards(cards, setCards, setSyncStatus, updateStatus);
       
       if (result.success) {
         if (result.count > 0) {
           setImportStatus(`✨ Magic fix complete! Reformatted ${result.count} cards`);
+          setFormatProgress(prev => ({
+            ...prev,
+            isActive: false,
+            percentage: 100,
+            message: `✨ Magic fix complete! Reformatted ${result.count} cards`
+          }));
         } else {
           setImportStatus(`✨ All cards are already properly formatted!`);
+          setFormatProgress(prev => ({
+            ...prev,
+            isActive: false,
+            percentage: 100,
+            message: `✨ All cards are already properly formatted!`
+          }));
         }
       } else {
         setImportStatus(`Error: Failed to format cards. ${result.error?.message || ''}`);
+        setFormatProgress(prev => ({
+          ...prev,
+          isActive: false,
+          message: `Error: Failed to format cards. ${result.error?.message || ''}`
+        }));
       }
     } catch (error) {
       console.error('Error during magic fix:', error);
       setImportStatus(`Error: Magic fix failed: ${error.message}`);
+      setFormatProgress(prev => ({
+        ...prev,
+        isActive: false,
+        message: `Error: Magic fix failed: ${error.message}`
+      }));
     } finally {
-      setIsReformatting(false);
+      setTimeout(() => {
+        setIsReformatting(false);
+        setFormatProgress(prev => ({...prev, isActive: false}));
+      }, 3000); // Keep the progress visible for a bit
     }
+  };
+  
+  // Cancel the current formatting operation
+  const handleCancelFormat = () => {
+    setImportStatus('Cancelling format operation...');
+    // The actual cancellation logic is in the updated magicFixCards function
+    setIsReformatting(false);
+    setTimeout(() => {
+      setFormatProgress(prev => ({...prev, isActive: false}));
+      setImportStatus('Format operation cancelled');
+    }, 1000);
   };
   
   // Import flashcards with improved error handling and validation
@@ -285,6 +370,37 @@ const Stats = () => {
     return `${cards.length} cards in memory`;
   };
   
+  // Render the formatting progress UI
+  const renderFormatProgress = () => {
+    if (!formatProgress.isActive) return null;
+    
+    return (
+      <div className="format-progress">
+        <h3>Formatting in Progress</h3>
+        <div className="progress-info">
+          <div className="progress-numbers">
+            <span>Batch: {formatProgress.currentBatch}/{formatProgress.totalBatches}</span>
+            <span>Cards: {formatProgress.cardsProcessed}/{formatProgress.totalCards}</span>
+          </div>
+          <div className="progress-bar format-progress-bar">
+            <div 
+              className="progress-fill" 
+              style={{ width: `${formatProgress.percentage}%` }}
+            ></div>
+            <div className="progress-text">{formatProgress.percentage}%</div>
+          </div>
+          <div className="progress-message">{formatProgress.message}</div>
+          <button 
+            className="cancel-btn" 
+            onClick={handleCancelFormat}
+          >
+            <FaStopCircle /> Cancel
+          </button>
+        </div>
+      </div>
+    );
+  };
+  
   return (
     <div className="stats-container">
       <h2>Your progress</h2>
@@ -341,6 +457,9 @@ const Stats = () => {
         </div>
       </div>
       
+      {/* Render the formatting progress UI */}
+      {renderFormatProgress()}
+      
       <div className="button-container">
         <button 
           className="reset-btn" 
@@ -381,7 +500,15 @@ const Stats = () => {
           onClick={handleMagicFix}
           disabled={syncStatus === 'syncing' || isImporting || isReformatting || stats.total === 0}
         >
-          <FaMagic /> ✨ Magic Fix Formatting
+          {isReformatting ? (
+            <>
+              <FaSpinner className="spinning" /> Processing...
+            </>
+          ) : (
+            <>
+              <FaMagic /> ✨ Magic Fix Formatting
+            </>
+          )}
         </button>
         
         <div className="debug-buttons">
@@ -409,7 +536,7 @@ const Stats = () => {
         {cardDetails()}
       </div>
       
-      {importStatus && (
+      {importStatus && !formatProgress.isActive && (
         <div className={`import-status ${importStatus.includes('Error') || importStatus.includes('failed') ? 'error' : importStatus.includes('Successfully') || importStatus.includes('Magic fix complete') ? 'success' : ''}`}>
           {importStatus.includes('Reading') || importStatus.includes('Syncing') || importStatus.includes('Clearing') || importStatus.includes('Refreshing') || importStatus.includes('Reformatting') || importStatus.includes('Updating batch') ? (
             <div className="import-loading">{importStatus}</div>

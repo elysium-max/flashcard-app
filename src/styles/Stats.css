@@ -500,3 +500,92 @@
       flex-direction: column;
     }
   }
+    
+/* Add these styles to your src/styles/Stats.css file */
+
+/* Format progress container */
+.format-progress {
+    margin: 1.5rem 0;
+    padding: 1.25rem;
+    background-color: #f8f9fa;
+    border-radius: 10px;
+    border: 1px solid #e9ecef;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+  }
+  
+  .format-progress h3 {
+    margin-top: 0;
+    margin-bottom: 1rem;
+    color: #3498db;
+    font-size: 1.2rem;
+    border-bottom: 1px solid #e9ecef;
+    padding-bottom: 0.5rem;
+  }
+  
+  .progress-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  
+  .progress-numbers {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.9rem;
+    color: #495057;
+  }
+  
+  .format-progress-bar {
+    height: 20px;
+    width: 100%;
+    background-color: #e9ecef;
+    border-radius: 10px;
+    overflow: hidden;
+    margin: 0.5rem 0;
+  }
+  
+  .format-progress-bar .progress-fill {
+    background: linear-gradient(90deg, #9b59b6, #8e44ad);
+  }
+  
+  .progress-message {
+    font-size: 0.95rem;
+    color: #495057;
+    padding: 0.5rem;
+    background-color: #f1f3f5;
+    border-radius: 4px;
+    border-left: 3px solid #3498db;
+  }
+  
+  .cancel-btn {
+    align-self: center;
+    padding: 0.5rem 1rem;
+    background-color: #e74c3c;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  
+  .cancel-btn:hover {
+    background-color: #c0392b;
+  }
+  
+  /* Spinner animation */
+  .spinning {
+    animation: spin 1.2s linear infinite;
+  }
+  
+  @keyframes spin {
+    0% {
+      transform: rotate(0deg);
+    }
+    100% {
+      transform: rotate(360deg);
+    }
+  }
