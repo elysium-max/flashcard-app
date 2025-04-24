@@ -87,8 +87,8 @@ const Flashcard = () => {
     }
   };
   
-  // Format the back side of the card with improved error handling for separating example sentences
-  const formatBackContent = (backText) => {
+  // Updated formatBackContent function for src/components/Flashcard.js
+const formatBackContent = (backText) => {
     if (!backText) return <div className="card-content"><div className="translation">No content</div></div>;
     
     try {
@@ -110,70 +110,12 @@ const Flashcard = () => {
         );
       }
       
-      // For unformatted content, use regular expressions to separate sections
+      // For unformatted content, use improved regular expressions to separate sections
       
-      // Step 1: Look for sentence patterns with "I" which are common in examples
-      const iStatementPattern = /^([^.!?;]+?(?:;[^.!?;]+?)*)\s+I\s+(.+)$/i;
-      const iStatementMatch = backText.match(iStatementPattern);
-      
-      if (iStatementMatch) {
-        const translation = iStatementMatch[1].trim();
-        const example = "I " + iStatementMatch[2].trim();
-        
-        // Find grammar notes
-        const grammarMarkers = ['Conj.', 'Notes:', 'Note:', 'Grammar:', 'Gram.'];
-        let grammarNotes = '';
-        
-        for (const marker of grammarMarkers) {
-          if (example.includes(marker)) {
-            const grammarStart = example.indexOf(marker);
-            grammarNotes = example.substring(grammarStart).trim();
-            example = example.substring(0, grammarStart).trim();
-            break;
-          }
-        }
-        
-        return (
-          <div className="card-content">
-            <div className="translation">{translation}</div>
-            {example && <div className="translated-example">{example}</div>}
-            {grammarNotes && <div className="grammar-notes">{grammarNotes}</div>}
-          </div>
-        );
-      }
-      
-      // Step 2: Look for sentences after semicolons or parentheses
-      const semicolonOrParensPattern = /^([^.!?]+(?:\([^)]+\))?(?:;[^.!?;]+)*)\s+([A-Z][^.!?;]+.*)$/;
-      const semicolonMatch = backText.match(semicolonOrParensPattern);
-      
-      if (semicolonMatch) {
-        const translation = semicolonMatch[1].trim();
-        let example = semicolonMatch[2].trim();
-        
-        // Check if example contains grammar notes
-        const grammarMarkers = ['Conj.', 'Notes:', 'Note:', 'Grammar:', 'Gram.'];
-        let grammarNotes = '';
-        
-        for (const marker of grammarMarkers) {
-          if (example.includes(marker)) {
-            const grammarStart = example.indexOf(marker);
-            grammarNotes = example.substring(grammarStart).trim();
-            example = example.substring(0, grammarStart).trim();
-            break;
-          }
-        }
-        
-        return (
-          <div className="card-content">
-            <div className="translation">{translation}</div>
-            {example && <div className="translated-example">{example}</div>}
-            {grammarNotes && <div className="grammar-notes">{grammarNotes}</div>}
-          </div>
-        );
-      }
-      
-      // Step 3: If no clear pattern match, fall back to grammar separation only
+      // Common grammar markers
       const grammarMarkers = ['Conj.', 'Notes:', 'Note:', 'Grammar:', 'Gram.'];
+      
+      // Find the start of grammar section
       let grammarStart = -1;
       let grammarMarker = '';
       
@@ -186,17 +128,71 @@ const Flashcard = () => {
       }
       
       // Extract grammar notes if available
-      let translation = backText;
+      let mainText = backText;
       let grammarNotes = '';
       
       if (grammarStart !== -1) {
         grammarNotes = backText.substring(grammarStart).trim();
-        translation = backText.substring(0, grammarStart).trim();
+        mainText = backText.substring(0, grammarStart).trim();
+      }
+      
+      // Try to identify translation and example in the main text
+      let translation = '';
+      let example = '';
+      
+      // Pattern 1: Look for sentences that start with "I" after the main translation
+      const iStatementPattern = /^([^.!?;]+?(?:;[^.!?;]+?)*)\s+I\s+(.+)$/i;
+      const iStatementMatch = mainText.match(iStatementPattern);
+      
+      if (iStatementMatch) {
+        translation = iStatementMatch[1].trim();
+        example = "I " + iStatementMatch[2].trim();
+      } else {
+        // Pattern 2: Look for any English sentence after a semicolon or closing parenthesis
+        const semicolonPattern = /^([^.!?]+(?:\([^)]+\))?(?:;[^.!?;]+)*)\s+([A-Z][^.!?;]+.*)$/;
+        const semicolonMatch = mainText.match(semicolonPattern);
+        
+        if (semicolonMatch) {
+          translation = semicolonMatch[1].trim();
+          example = semicolonMatch[2].trim();
+        } else {
+          // Pattern 3: Look for definitive closing of translation with parentheses
+          const parensPattern = /^(.+\))\s+([A-Z].+)$/;
+          const parensMatch = mainText.match(parensPattern);
+          
+          if (parensMatch) {
+            translation = parensMatch[1].trim();
+            example = parensMatch[2].trim();
+          } else {
+            // Pattern 4: Look for a capital letter after multiple definitions
+            const capitalsAfterSemicolon = /^([^.!?;]+(?:;\s+[^.!?;]+)+)\s+([A-Z].+)$/;
+            const capitalMatch = mainText.match(capitalsAfterSemicolon);
+            
+            if (capitalMatch) {
+              translation = capitalMatch[1].trim();
+              example = capitalMatch[2].trim();
+            } else {
+              // Pattern 5: NEW - Look for any capital letter in the middle of the text
+              // that might indicate the start of an example sentence
+              const anyCapitalPattern = /^([^.!?;]+[.!?;])\s+([A-Z].+)$/;
+              const anyCapitalMatch = mainText.match(anyCapitalPattern);
+              
+              if (anyCapitalMatch) {
+                translation = anyCapitalMatch[1].trim();
+                example = anyCapitalMatch[2].trim();
+              } else {
+                // Fallback: just use the whole text as translation
+                translation = mainText;
+              }
+            }
+          }
+        }
       }
       
       return (
         <div className="card-content">
           <div className="translation">{translation}</div>
+          {example && <div className="translated-example">{example}</div>}
           {grammarNotes && <div className="grammar-notes">{grammarNotes}</div>}
         </div>
       );
