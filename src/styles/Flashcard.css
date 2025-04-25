@@ -1,455 +1,426 @@
-/* src/styles/Flashcard.css - Corrected styling for word/example separation */
+/* src/styles/Flashcard.css - Enhanced version */
 
 .flashcard-container {
-    width: 100%;
-    max-width: 700px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 2rem;
-    padding: 1rem;
-    margin-bottom: 8rem; /* Add bottom margin to ensure controls are visible */
-    position: relative;
-  }
-  
-  .flashcard {
-    position: relative;
-    width: 100%;
-    height: 450px; /* Fixed height */
-    perspective: 1500px;
-    cursor: pointer;
-    transform-style: preserve-3d;
-    margin-bottom: 2rem; /* Add specific margin to separate card from controls */
-  }
-  
-  .flashcard-front,
-  .flashcard-back {
-    position: absolute;
-    width: 100%;
-    height: 100%;
-    backface-visibility: hidden;
-    transition: transform 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-    border-radius: 16px;
+  width: 100%;
+  max-width: 700px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2rem;
+  padding: 1rem;
+  margin-bottom: 5rem; 
+  position: relative;
+}
+
+.flashcard {
+  position: relative;
+  width: 100%;
+  height: 450px;
+  perspective: 1500px;
+  cursor: pointer;
+  transform-style: preserve-3d;
+  margin-bottom: 2rem;
+}
+
+.flashcard-front,
+.flashcard-back {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  backface-visibility: hidden;
+  transition: transform 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  border-radius: 16px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  overflow-y: auto;
+}
+
+.flashcard-front {
+  transform: rotateY(0deg);
+  background: linear-gradient(135deg, #3498db, #2c3e50);
+  color: white;
+  z-index: 2;
+  background-image: 
+    radial-gradient(circle at 10% 10%, rgba(255, 255, 255, 0.1) 0%, transparent 60%),
+    linear-gradient(135deg, #3498db, #2c3e50);
+}
+
+.flashcard-back {
+  transform: rotateY(180deg);
+  background-color: white;
+  color: #333;
+  border: 2px solid #3498db;
+  background-image: 
+    radial-gradient(circle at 90% 90%, rgba(52, 152, 219, 0.1) 0%, transparent 60%),
+    linear-gradient(to bottom, white, #f8f9fa);
+}
+
+.flashcard.flipped .flashcard-front {
+  transform: rotateY(180deg);
+}
+
+.flashcard.flipped .flashcard-back {
+  transform: rotateY(0deg);
+}
+
+/* Front-side vocabulary word (Foreign language) */
+.vocab-word {
+  font-weight: bold;
+  font-size: 2.5rem;
+  margin-bottom: 1.5rem;
+  color: white;
+  word-wrap: break-word;
+  max-width: 100%;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  text-align: center;
+  position: relative;
+  padding-bottom: 1rem;
+}
+
+.vocab-word::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 25%;
+  width: 50%;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 2px;
+}
+
+/* Front-side example sentence (Foreign language) */
+.example {
+  font-style: italic;
+  font-size: 1.5rem;
+  color: rgba(255, 255, 255, 0.9);
+  word-wrap: break-word;
+  max-width: 100%;
+  line-height: 1.4;
+  margin-top: 1.5rem;
+  text-align: center;
+  padding: 1.5rem 1.5rem;
+  background-color: rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+}
+
+/* Back-side translation (English) */
+.translation {
+  font-weight: bold;
+  font-size: 2rem;
+  margin-bottom: 1rem;
+  color: #3498db;
+  word-wrap: break-word;
+  max-width: 100%;
+  text-align: center;
+  position: relative;
+  padding-bottom: 1rem;
+}
+
+.translation::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 25%;
+  width: 50%;
+  height: 2px;
+  background: rgba(52, 152, 219, 0.2);
+  border-radius: 2px;
+}
+
+/* Back-side example sentence (English) */
+.translated-example {
+  font-style: italic;
+  font-size: 1.4rem;
+  margin-top: 1.5rem;
+  margin-bottom: 1.5rem;
+  color: #555;
+  word-wrap: break-word;
+  max-width: 100%;
+  line-height: 1.4;
+  text-align: center;
+  padding: 1.25rem 1.5rem;
+  background-color: rgba(52, 152, 219, 0.05);
+  border-radius: 12px;
+  border-left: 3px solid rgba(52, 152, 219, 0.3);
+  box-shadow: 0 4px 15px rgba(52, 152, 219, 0.1);
+}
+
+/* Grammar notes section */
+.grammar-notes {
+  font-size: 1.1rem;
+  text-align: left;
+  color: #666;
+  background-color: #f8f9fa;
+  padding: 1.5rem;
+  border-radius: 12px;
+  border-left: 3px solid #3498db;
+  width: 100%;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  overflow: auto;
+  line-height: 1.6;
+  margin-top: 1.5rem;
+}
+
+.card-hint {
+  font-size: 0.9rem;
+  text-align: center;
+  opacity: 0.7;
+  margin-top: 1.5rem;
+  position: absolute;
+  bottom: 1rem;
+  left: 0;
+  right: 0;
+  animation: pulsate 2s ease-out infinite;
+}
+
+@keyframes pulsate {
+  0% { opacity: 0.4; }
+  50% { opacity: 0.8; }
+  100% { opacity: 0.4; }
+}
+
+/* Improved controls styling */
+.flashcard-controls {
+  display: flex;
+  width: 100%;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+  position: relative;
+  z-index: 10;
+  margin-top: 1rem;
+}
+
+.status-buttons {
+  display: flex;
+  gap: 1rem;
+  flex: 2;
+}
+
+.control-btn {
+  padding: 1rem 1.5rem;
+  border-radius: 12px;
+  font-weight: 500;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: none;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+}
+
+.status-buttons .control-btn {
+  flex: 1;
+}
+
+.control-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+.control-btn.known {
+  background: linear-gradient(135deg, #2ecc71, #27ae60);
+  color: white;
+  box-shadow: 0 4px 10px rgba(46, 204, 113, 0.3);
+}
+
+.control-btn.unknown {
+  background: linear-gradient(135deg, #e74c3c, #c0392b);
+  color: white;
+  box-shadow: 0 4px 10px rgba(231, 76, 60, 0.3);
+}
+
+.control-btn.skip {
+  background: linear-gradient(135deg, #f1c40f, #f39c12);
+  color: white;
+  flex: 1;
+  box-shadow: 0 4px 10px rgba(241, 196, 15, 0.3);
+}
+
+.control-btn:hover:not(:disabled) {
+  transform: translateY(-3px);
+  box-shadow: 0 6px 15px rgba(0, 0, 0, 0.2);
+}
+
+.control-btn:active:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.control-btn.known:hover:not(:disabled) {
+  box-shadow: 0 6px 15px rgba(46, 204, 113, 0.4);
+}
+
+.control-btn.unknown:hover:not(:disabled) {
+  box-shadow: 0 6px 15px rgba(231, 76, 60, 0.4);
+}
+
+.control-btn.skip:hover:not(:disabled) {
+  box-shadow: 0 6px 15px rgba(241, 196, 15, 0.4);
+}
+
+.flashcard-status {
+  display: flex;
+  width: 100%;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.9rem;
+  margin-top: 1rem;
+  position: relative;
+  z-index: 10;
+}
+
+.status-indicator {
+  padding: 6px 16px;
+  border-radius: 20px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+}
+
+.status-indicator.known {
+  background-color: rgba(46, 204, 113, 0.15);
+  color: #2ecc71;
+}
+
+.status-indicator.unknown {
+  background-color: rgba(231, 76, 60, 0.15);
+  color: #e74c3c;
+}
+
+.last-reviewed {
+  color: #7f8c8d;
+  padding: 4px 12px;
+  background-color: rgba(0, 0, 0, 0.03);
+  border-radius: 20px;
+}
+
+/* No cards message styling */
+.no-cards {
+  text-align: center;
+  padding: 3rem;
+  background-color: white;
+  border-radius: 16px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+  width: 100%;
+  background-image: 
+    radial-gradient(circle at 90% 90%, rgba(52, 152, 219, 0.05) 0%, transparent 60%),
+    linear-gradient(to bottom, white, #f8f9fa);
+}
+
+.no-cards h2 {
+  color: #e74c3c;
+  margin-bottom: 1.5rem;
+}
+
+.no-cards p {
+  color: #7f8c8d;
+  margin-bottom: 1rem;
+  font-size: 1.1rem;
+  line-height: 1.6;
+}
+
+.card-count {
+  margin-top: 1.5rem;
+  font-size: 0.9rem;
+  color: #95a5a6;
+  padding: 4px 12px;
+  background-color: rgba(0, 0, 0, 0.03);
+  border-radius: 20px;
+  display: inline-block;
+}
+
+/* Animation for card flipping */
+@keyframes float {
+  0% {
+    transform: translateY(0px);
     box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
-    padding: 2rem;
-    display: flex;
-    flex-direction: column;
-    background-color: white;
-    -webkit-backface-visibility: hidden;
-    backface-visibility: hidden;
-    overflow-y: auto;
+  }
+  50% {
+    transform: translateY(-10px);
+    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.15);
+  }
+  100% {
+    transform: translateY(0px);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+  }
+}
+
+.flashcard:hover:not(.flipped) {
+  animation: float 3s ease-in-out infinite;
+}
+
+/* Media queries for better responsiveness */
+@media (max-width: 768px) {
+  .flashcard {
+    height: 400px;
   }
   
-  .flashcard-front {
-    transform: rotateY(0deg);
-    background: linear-gradient(135deg, #3498db, #2c3e50);
-    color: white;
-    z-index: 2;
-  }
-  
-  .flashcard-back {
-    transform: rotateY(180deg);
-    background-color: white;
-    color: #333;
-    border: 2px solid #3498db;
-  }
-  
-  .flashcard.flipped .flashcard-front {
-    transform: rotateY(180deg);
-  }
-  
-  .flashcard.flipped .flashcard-back {
-    transform: rotateY(0deg);
-  }
-  
-  .card-id {
-    font-size: 0.9rem;
-    font-weight: bold;
-    margin-bottom: 0.5rem;
-    color: inherit;
-    opacity: 0.8;
-  }
-  
-  .card-content {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    justify-content: flex-start;
-    padding: 1rem 0;
-    width: 100%;
-    max-height: 100%;
-    overflow-y: auto;
-  }
-  
-  /* Front-side vocabulary word (Polish) */
   .vocab-word {
-    font-weight: bold;
-    font-size: 2.5rem;
-    margin-bottom: 1.5rem;
-    color: white;
-    word-wrap: break-word;
-    max-width: 100%;
-    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-    text-align: center;
-  }
-  
-  /* Front-side example sentence (Polish) */
-  .example {
-    font-style: italic;
-    font-size: 1.5rem;
-    color: rgba(255, 255, 255, 0.9);
-    word-wrap: break-word;
-    max-width: 100%;
-    line-height: 1.4;
-    margin-top: 1.5rem;
-    text-align: center;
-    padding: 0.5rem 1rem;
-    background-color: rgba(255, 255, 255, 0.1);
-    border-radius: 8px;
-  }
-  
-  /* Back-side translation (English) */
-  .translation {
-    font-weight: bold;
     font-size: 2rem;
-    margin-bottom: 1rem;
-    color: #3498db;
-    word-wrap: break-word;
-    max-width: 100%;
-    text-align: center;
   }
   
-  /* Back-side example sentence (English) */
+  .example {
+    font-size: 1.3rem;
+    padding: 1rem;
+  }
+  
+  .translation {
+    font-size: 1.7rem;
+  }
+  
   .translated-example {
-    font-style: italic;
-    font-size: 1.4rem;
-    margin-top: 1.5rem;
-    margin-bottom: 1.5rem;
-    color: #555;
-    word-wrap: break-word;
-    max-width: 100%;
-    line-height: 1.4;
-    text-align: center;
-    padding: 0.75rem 1.25rem;
-    background-color: rgba(52, 152, 219, 0.05);
-    border-radius: 8px;
-    border-left: 3px solid rgba(52, 152, 219, 0.3);
+    font-size: 1.2rem;
+    padding: 1rem;
   }
   
-  /* Grammar notes section */
-  .grammar-notes {
-    font-size: 1.1rem;
-    text-align: left;
-    color: #666;
-    background-color: #f8f9fa;
-    padding: 1.5rem;
-    border-radius: 8px;
-    border-left: 3px solid #3498db;
-    width: 100%;
-    word-wrap: break-word;
-    overflow-wrap: break-word;
-    overflow: auto;
-    line-height: 1.6;
-    margin-top: 1.5rem;
+  .flashcard-container {
+    margin-bottom: 6rem;
   }
   
-  .card-hint {
-    font-size: 0.9rem;
-    text-align: center;
-    opacity: 0.7;
-    margin-top: 1.5rem;
-    position: absolute;
-    bottom: 1rem;
-    left: 0;
-    right: 0;
-  }
-  
-  /* Fix for controls positioning */
   .flashcard-controls {
-    display: flex;
-    width: 100%;
-    justify-content: space-between;
-    gap: 1rem;
-    align-items: center;
-    position: relative; /* Ensure controls appear in normal flow */
-    z-index: 10; /* Make sure controls stay above card */
-    margin-top: 1rem; /* Add top margin to separate from card */
+    flex-direction: column;
   }
   
   .status-buttons {
-    display: flex;
-    gap: 1rem;
-    flex: 2;
-  }
-  
-  .control-btn {
-    padding: 0.875rem 1.25rem;
-    border-radius: 8px;
-    font-weight: 500;
-    font-size: 1rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    border: none;
-    transition: all 0.3s ease;
-  }
-  
-  .status-buttons .control-btn {
-    flex: 1;
-  }
-  
-  .control-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-    box-shadow: none !important;
-    transform: none !important;
-  }
-  
-  .control-btn.known {
-    background-color: #2ecc71;
-    color: white;
-    box-shadow: 0 4px 10px rgba(46, 204, 113, 0.3);
-  }
-  
-  .control-btn.unknown {
-    background-color: #e74c3c;
-    color: white;
-    box-shadow: 0 4px 10px rgba(231, 76, 60, 0.3);
+    width: 100%;
   }
   
   .control-btn.skip {
-    background-color: #f1c40f;
-    color: #333;
-    flex: 1;
-    box-shadow: 0 4px 10px rgba(241, 196, 15, 0.3);
-  }
-  
-  .control-btn:hover:not(:disabled) {
-    opacity: 0.9;
-    transform: translateY(-3px);
-  }
-  
-  .flashcard-status {
-    display: flex;
     width: 100%;
-    justify-content: space-between;
-    align-items: center;
-    font-size: 0.9rem;
-    margin-top: 1rem;
-    position: relative; /* Ensure status appears in normal flow */
-    z-index: 10; /* Make sure status stays above card */
+    margin-top: 0.5rem;
   }
   
-  .status-indicator {
-    padding: 4px 12px;
-    border-radius: 20px;
-    font-weight: 500;
+  .control-btn {
+    padding: 0.875rem 1rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .flashcard {
+    height: 350px;
   }
   
-  .status-indicator.known {
-    background-color: rgba(46, 204, 113, 0.2);
-    color: #2ecc71;
+  .vocab-word {
+    font-size: 1.75rem;
   }
   
-  .status-indicator.unknown {
-    background-color: rgba(231, 76, 60, 0.2);
-    color: #e74c3c;
-  }
-  
-  .last-reviewed {
-    color: #7f8c8d;
-  }
-  
-  /* Syncing indicator */
-  .syncing-indicator {
-    position: absolute;
-    top: -50px;
-    left: 0;
-    right: 0;
-    background-color: rgba(243, 156, 18, 0.2);
-    color: #f39c12;
-    padding: 8px 16px;
-    border-radius: 8px;
-    text-align: center;
-    font-weight: 500;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    animation: pulse 2s infinite;
-  }
-  
-  .syncing-indicator::after {
-    content: "";
-    width: 12px;
-    height: 12px;
-    border: 2px solid #f39c12;
-    border-radius: 50%;
-    border-top-color: transparent;
-    animation: spin 1s linear infinite;
-  }
-  
-  /* Sync error banner */
-  .sync-error-banner {
-    position: absolute;
-    top: -50px;
-    left: 0;
-    right: 0;
-    background-color: rgba(231, 76, 60, 0.2);
-    color: #e74c3c;
-    padding: 8px 16px;
-    border-radius: 8px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    font-weight: 500;
-  }
-  
-  .refresh-cards-btn {
-    background-color: rgba(52, 152, 219, 0.2);
-    color: #3498db;
-    border: none;
-    border-radius: 4px;
-    padding: 4px 12px;
-    margin-left: 8px;
-    cursor: pointer;
-    font-size: 0.9rem;
-    font-weight: 500;
-    transition: all 0.2s ease;
-  }
-  
-  .refresh-cards-btn:hover {
-    background-color: rgba(52, 152, 219, 0.3);
-  }
-  
-  .refresh-cards-btn.small {
-    font-size: 0.8rem;
-    padding: 3px 8px;
-  }
-  
-  .no-cards {
-    text-align: center;
-    padding: 3rem;
-    background-color: white;
-    border-radius: 16px;
-    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
-    width: 100%;
-  }
-  
-  .no-cards h2 {
-    color: #e74c3c;
-    margin-bottom: 1.5rem;
-  }
-  
-  .no-cards p {
-    color: #7f8c8d;
-    margin-bottom: 1rem;
+  .example {
     font-size: 1.1rem;
   }
   
-  .card-count {
-    margin-top: 1.5rem;
-    font-size: 0.9rem;
-    color: #95a5a6;
+  .flashcard-front, .flashcard-back {
+    padding: 1.5rem;
   }
-  
-  .sync-error {
-    margin-top: 1.5rem;
-    padding: 1rem;
-    background-color: rgba(231, 76, 60, 0.1);
-    border-radius: 8px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 0.75rem;
-  }
-  
-  .sync-error svg {
-    color: #e74c3c;
-    font-size: 1.5rem;
-  }
-  
-  .sync-error p {
-    margin: 0;
-    color: #e74c3c;
-  }
-  
-  /* Animation for card flipping */
-  @keyframes float {
-    0% {
-      transform: translateY(0px);
-      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
-    }
-    50% {
-      transform: translateY(-10px);
-      box-shadow: 0 15px 35px rgba(0, 0, 0, 0.15);
-    }
-    100% {
-      transform: translateY(0px);
-      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
-    }
-  }
-  
-  @keyframes pulse {
-    0% {
-      opacity: 0.8;
-    }
-    50% {
-      opacity: 1;
-    }
-    100% {
-      opacity: 0.8;
-    }
-  }
-  
-  @keyframes spin {
-    to {
-      transform: rotate(360deg);
-    }
-  }
-  
-  .flashcard:hover:not(.flipped) {
-    animation: float 3s ease-in-out infinite;
-  }
-  
-  /* Media queries for better responsiveness */
-  @media (max-width: 768px) {
-    .flashcard {
-      height: 400px;
-    }
-    
-    .vocab-word {
-      font-size: 2rem;
-    }
-    
-    .example {
-      font-size: 1.3rem;
-    }
-    
-    .translation {
-      font-size: 1.7rem;
-    }
-    
-    .translated-example {
-      font-size: 1.2rem;
-    }
-    
-    .flashcard-container {
-      margin-bottom: 6rem;
-    }
-    
-    .flashcard-controls {
-      flex-direction: column;
-    }
-    
-    .status-buttons {
-      width: 100%;
-    }
-    
-    .control-btn.skip {
-      width: 100%;
-      margin-top: 0.5rem;
-    }
-  }
+}

@@ -1,0 +1,189 @@
+/* src/styles/StudyMode.css */
+
+.study-mode-container {
+    background-color: white;
+    border-radius: 12px;
+    padding: 1.75rem;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+    transition: all 0.3s ease;
+  }
+  
+  .study-mode-container:hover {
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+    transform: translateY(-2px);
+  }
+  
+  .study-mode-container h2 {
+    color: #2c3e50;
+    font-weight: 600;
+    margin-bottom: 1.5rem;
+    border-bottom: 2px solid rgba(52, 152, 219, 0.1);
+    padding-bottom: 0.75rem;
+    text-align: center;
+  }
+  
+  .mode-cards {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1rem;
+    margin-bottom: 1.75rem;
+  }
+  
+  .mode-card {
+    position: relative;
+    display: flex;
+    align-items: center;
+    background-color: #f8f9fa;
+    border-radius: 12px;
+    padding: 1.25rem;
+    transition: all 0.3s ease;
+    cursor: pointer;
+    border: 2px solid transparent;
+    overflow: hidden;
+  }
+  
+  .mode-card:hover:not(.disabled) {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 15px rgba(0, 0, 0, 0.08);
+  }
+  
+  .mode-card.active {
+    background: linear-gradient(135deg, rgba(52, 152, 219, 0.1) 0%, rgba(52, 152, 219, 0.05) 100%);
+    border-color: #3498db;
+    box-shadow: 0 6px 15px rgba(52, 152, 219, 0.15);
+  }
+  
+  .mode-card.disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+  
+  .disabled-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(240, 240, 240, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 500;
+    color: #7f8c8d;
+    backdrop-filter: blur(1px);
+    border-radius: 12px;
+  }
+  
+  .mode-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 50px;
+    height: 50px;
+    background: linear-gradient(135deg, #3498db, #2c3e50);
+    color: white;
+    border-radius: 12px;
+    font-size: 1.25rem;
+    margin-right: 1.25rem;
+    transition: all 0.3s ease;
+  }
+  
+  .mode-icon.known-icon {
+    background: linear-gradient(135deg, #2ecc71, #27ae60);
+  }
+  
+  .mode-icon.unknown-icon {
+    background: linear-gradient(135deg, #e74c3c, #c0392b);
+  }
+  
+  .mode-card.active .mode-icon {
+    transform: scale(1.1);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+  }
+  
+  .mode-details {
+    flex: 1;
+  }
+  
+  .mode-details h3 {
+    margin: 0 0 0.25rem 0;
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #2c3e50;
+  }
+  
+  .mode-details p {
+    margin: 0 0 0.5rem 0;
+    font-size: 0.9rem;
+    color: #7f8c8d;
+  }
+  
+  .mode-count {
+    display: inline-block;
+    background-color: rgba(0, 0, 0, 0.07);
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: #2c3e50;
+  }
+  
+  .mode-card.active .mode-count {
+    background-color: rgba(52, 152, 219, 0.25);
+    color: #2980b9;
+  }
+  
+  .shuffle-btn {
+    width: 100%;
+    padding: 1rem;
+    border: none;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #9b59b6, #8e44ad);
+    color: white;
+    font-size: 1rem;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 10px rgba(155, 89, 182, 0.3);
+  }
+  
+  .shuffle-btn:hover {
+    background: linear-gradient(135deg, #8e44ad, #6c3483);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 15px rgba(155, 89, 182, 0.4);
+  }
+  
+  /* Media queries for better responsiveness */
+  @media (min-width: 768px) {
+    .mode-cards {
+      grid-template-columns: repeat(3, 1fr);
+    }
+    
+    .mode-card {
+      flex-direction: column;
+      text-align: center;
+    }
+    
+    .mode-icon {
+      margin: 0 0 1rem 0;
+      width: 60px;
+      height: 60px;
+      font-size: 1.5rem;
+    }
+  }
+  
+  @media (max-width: 767px) {
+    .mode-card {
+      padding: 1rem;
+    }
+    
+    .mode-icon {
+      min-width: 40px;
+      height: 40px;
+      margin-right: 1rem;
+    }
+  }
