@@ -1,6 +1,6 @@
 // src/context/FlashcardContext.js
 
-import React, { createContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useState, useEffect, useCallback, useRef } from 'react';
 import { auth, db } from '../utils/firebase';
 import { 
   collection, 
@@ -40,11 +40,6 @@ export const FlashcardProvider = ({ children }) => {
   const savedStudyMode = localStorage.getItem('studyMode') || 'all';
   const [studyMode, setStudyMode] = useState(savedStudyMode);
   
-  // Save study mode to localStorage whenever it changes
-  useEffect(() => {
-    localStorage.setItem('studyMode', studyMode);
-  }, [studyMode]);
-  
   const [stats, setStats] = useState({
     total: 0,
     known: 0,
@@ -52,12 +47,46 @@ export const FlashcardProvider = ({ children }) => {
     reviewed: 0
   });
   
-  // Additional state for sync management - keeping these for compatibility but not using them for UI
+  // Additional state for sync management
   const [syncStatus, setSyncStatus] = useState('idle'); // 'idle', 'syncing', 'error'
   const [lastSyncTime, setLastSyncTime] = useState(null);
 
-  // Combine loading states for the app
+  // Track if initial cards load has been completed
+  const initialLoadComplete = useRef(false);
+
+  // Combined loading state
   const loading = authLoading || cardsLoading;
+
+  // Helper function to save cards to localStorage
+  const saveCardsToLocalStorage = useCallback((cardsToSave) => {
+    try {
+      localStorage.setItem('flashcards', JSON.stringify(cardsToSave));
+      console.log(`Saved ${cardsToSave.length} cards to localStorage`);
+    } catch (error) {
+      console.error("Error saving to localStorage:", error);
+    }
+  }, []);
+
+  // Load cards from localStorage on mount (before authentication)
+  useEffect(() => {
+    try {
+      const storedCards = localStorage.getItem('flashcards');
+      if (storedCards && (!cards || cards.length === 0)) {
+        const parsedCards = JSON.parse(storedCards);
+        if (Array.isArray(parsedCards) && parsedCards.length > 0) {
+          console.log(`Found ${parsedCards.length} cards in localStorage on startup`);
+          setCards(parsedCards);
+        }
+      }
+    } catch (error) {
+      console.error("Error loading cards from localStorage on startup:", error);
+    }
+  }, []); // Empty dependency array ensures this runs only once on mount
+
+  // Save study mode to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem('studyMode', studyMode);
+  }, [studyMode]);
 
   // Set browser persistence for Firebase authentication
   useEffect(() => {
@@ -79,7 +108,6 @@ export const FlashcardProvider = ({ children }) => {
       setUser(currentUser);
       setAuthLoading(false);
       
-      // Log authentication status for debugging
       if (currentUser) {
         console.log("User is signed in:", currentUser.uid);
       } else {
@@ -90,39 +118,33 @@ export const FlashcardProvider = ({ children }) => {
     return () => unsubscribe();
   }, []);
 
-  // Load flashcards from Firestore if user is authenticated
+  // Load flashcards from Firestore when user authentication changes
   const loadUserCards = useCallback(async () => {
     if (!user) {
-      // Don't clear cards here to maintain offline state
-      // Even if the user is not authenticated, we'll keep the cards in memory
-      // This helps with page refreshes and temporary connectivity issues
       console.log("No user found, keeping existing cards in memory");
       return;
     }
     
     try {
       setCardsLoading(true);
+      setSyncStatus('syncing');
       console.log("Loading cards for user:", user.uid);
       
-      // This simple query doesn't require any index
       const q = query(
         collection(db, 'flashcards'), 
         where('userId', '==', user.uid)
       );
       
       const snapshot = await getDocs(q);
-      
-      // Log for debugging
       console.log(`Firestore query returned ${snapshot.docs.length} documents`);
       
-      // Process the results directly without trying to order them in Firestore
-      const flashcardsData = snapshot.docs.map(doc => {
+      // Process Firestore cards
+      const firestoreCards = snapshot.docs.map(doc => {
         const data = doc.data();
-        
         return {
           id: doc.id,
           ...data,
-          // Ensure timestamp fields are properly serialized
+          // Convert timestamps to ISO strings
           lastReviewed: data.lastReviewed ? 
             (typeof data.lastReviewed.toDate === 'function' ? 
               data.lastReviewed.toDate().toISOString() : data.lastReviewed) : 
@@ -138,84 +160,116 @@ export const FlashcardProvider = ({ children }) => {
         };
       });
       
-      // Sort the cards client-side instead of using Firestore's orderBy
-      flashcardsData.sort((a, b) => {
-        if (a.createdAt && b.createdAt) {
-          const dateA = new Date(a.createdAt);
-          const dateB = new Date(b.createdAt);
-          return dateA - dateB;
-        }
-        return 0;
+      // Use a state updater function to get current cards without adding a dependency
+      setCards(prevCards => {
+        // Create content-based maps for merging
+        const firestoreContentMap = new Map();
+        firestoreCards.forEach(card => {
+          const contentKey = `${card.front?.trim()}::${card.back?.trim()}`;
+          firestoreContentMap.set(contentKey, card);
+        });
+        
+        const localContentMap = new Map();
+        prevCards.forEach(card => {
+          const contentKey = `${card.front?.trim()}::${card.back?.trim()}`;
+          localContentMap.set(contentKey, card);
+        });
+        
+        // Merge cards - prefer local known status
+        const mergedCards = [];
+        
+        // Process Firestore cards
+        firestoreContentMap.forEach((firestoreCard, contentKey) => {
+          const localCard = localContentMap.get(contentKey);
+          
+          if (localCard) {
+            // This card exists in both local and Firestore - use Firestore card as base but local status
+            mergedCards.push({
+              ...firestoreCard,
+              known: localCard.known, // Keep local known status
+              timesReviewed: Math.max(firestoreCard.timesReviewed || 0, localCard.timesReviewed || 0)
+            });
+            
+            // Remove from local map to mark as processed
+            localContentMap.delete(contentKey);
+          } else {
+            // This is a card from Firestore not in local memory
+            mergedCards.push(firestoreCard);
+          }
+        });
+        
+        // Add any remaining local cards
+        localContentMap.forEach((localCard) => {
+          // Ensure it has the current user ID
+          mergedCards.push({
+            ...localCard, 
+            userId: user.uid
+          });
+        });
+        
+        // Sort the cards
+        mergedCards.sort((a, b) => {
+          if (a.createdAt && b.createdAt) {
+            return new Date(a.createdAt) - new Date(b.createdAt);
+          }
+          return 0;
+        });
+        
+        console.log(`Merged ${mergedCards.length} cards`);
+        
+        // Save to localStorage
+        saveCardsToLocalStorage(mergedCards);
+        
+        return mergedCards;
       });
       
-      console.log(`Loaded ${flashcardsData.length} cards from Firestore`);
-      
-      // Save cards to localStorage as a backup
-      try {
-        // We'll only store essential data to keep localStorage size manageable
-        const essentialCardData = flashcardsData.map(card => ({
-          id: card.id,
-          front: card.front,
-          back: card.back,
-          known: card.known,
-          timesReviewed: card.timesReviewed || 0,
-          lastReviewed: card.lastReviewed
-        }));
-        
-        localStorage.setItem('flashcards', JSON.stringify(essentialCardData));
-        console.log("Cards saved to localStorage");
-      } catch (storageError) {
-        console.error("Error saving to localStorage:", storageError);
-        // This is non-critical, so we'll continue even if it fails
-      }
-      
-      setCards(flashcardsData);
       setLastSyncTime(new Date().toISOString());
-      
-      if (flashcardsData.length === 0) {
-        console.log("No cards found, trying to load from localStorage");
-        
-        // Try to get cards from localStorage if no cards were found online
-        const storedCards = localStorage.getItem('flashcards');
-        if (storedCards) {
-          try {
-            const parsedCards = JSON.parse(storedCards);
-            if (Array.isArray(parsedCards) && parsedCards.length > 0) {
-              console.log(`Found ${parsedCards.length} cards in localStorage, using these until sync works`);
-              setCards(parsedCards);
-            }
-          } catch (parseError) {
-            console.error("Error parsing localStorage cards:", parseError);
-          }
-        }
-      }
+      setSyncStatus('idle');
     } catch (error) {
       console.error("Error loading flashcards:", error);
-      // Try to load from localStorage as fallback
-      try {
-        const storedCards = localStorage.getItem('flashcards');
-        if (storedCards) {
-          const parsedCards = JSON.parse(storedCards);
-          if (Array.isArray(parsedCards) && parsedCards.length > 0) {
-            console.log(`Network error, falling back to ${parsedCards.length} cards from localStorage`);
-            setCards(parsedCards);
+      setSyncStatus('error');
+      
+      // If we have local cards, keep using them
+      if (cards.length > 0) {
+        console.log(`Keeping ${cards.length} existing cards in memory despite sync error`);
+      } else {
+        // Try to load from localStorage as fallback
+        try {
+          const storedCards = localStorage.getItem('flashcards');
+          if (storedCards) {
+            const parsedCards = JSON.parse(storedCards);
+            if (Array.isArray(parsedCards) && parsedCards.length > 0) {
+              console.log(`Loading ${parsedCards.length} cards from localStorage as fallback`);
+              setCards(parsedCards);
+            }
           }
+        } catch (fallbackError) {
+          console.error("Error loading from localStorage fallback:", fallbackError);
         }
-      } catch (fallbackError) {
-        console.error("Error loading from localStorage fallback:", fallbackError);
       }
     } finally {
       setCardsLoading(false);
     }
-  }, [user]);
+  }, [user, saveCardsToLocalStorage]); // Removed 'cards' from dependencies
 
-  useEffect(() => {
+  // Function to explicitly refresh when needed
+  const refreshUserCards = useCallback(async () => {
     if (user) {
-      loadUserCards();
+      initialLoadComplete.current = false;
+      await loadUserCards();
+      initialLoadComplete.current = true;
     }
   }, [user, loadUserCards]);
 
-  // Update local stats whenever cards change
+  // Modified useEffect to prevent repeated loads
+  useEffect(() => {
+    if (user && !initialLoadComplete.current) {
+      loadUserCards();
+      initialLoadComplete.current = true;
+    }
+  }, [user, loadUserCards]);
+
+  // Update stats whenever cards change
   useEffect(() => {
     if (Array.isArray(cards) && cards.length > 0) {
       const newStats = {
@@ -241,13 +295,10 @@ export const FlashcardProvider = ({ children }) => {
         unknown: 0,
         reviewed: 0
       });
-      
-      // Clear stats in localStorage
-      localStorage.removeItem('flashcardStats');
     }
   }, [cards]);
 
-  // Authentication functions with error handling
+  // Authentication functions
   const registerUser = async (email, password) => {
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
@@ -291,26 +342,27 @@ export const FlashcardProvider = ({ children }) => {
 
   const logoutUser = async () => {
     try {
-      await signOut(auth);
-      // We no longer clear cards on logout - this is the key change for persistence
-      // Instead, we just update the UI to reflect that the user is logged out
-      setLastSyncTime(null);
-      console.log("User logged out, but keeping flashcards in memory for offline use");
+      // Save current cards to localStorage BEFORE signing out
+      saveCardsToLocalStorage(cards);
+      console.log("Saved cards to localStorage before logout");
       
-      // We could optionally mark the cards as being in "offline mode"
-      setSyncStatus('offline');
+      await signOut(auth);
+      setLastSyncTime(null);
+      
+      // DO NOT clear the cards here - this is important for persistence
+      // setCards([]);  <- Removing this line is key
+      
+      console.log("User logged out, but keeping flashcards in memory");
     } catch (error) {
       throw new Error(`Failed to sign out: ${error.message}`);
     }
   };
 
-  // Function to set a card's known status - MODIFIED TO SUPPORT OFFLINE MODE
+  // Function to set a card's known status
   const setCardStatus = async (id, isKnown) => {
     if (!id) return;
     
     try {
-      // Don't set syncing status to avoid UI indicator
-      
       // First update local state for immediate UI feedback
       const updatedCards = cards.map(card => 
         card.id === id 
@@ -326,17 +378,12 @@ export const FlashcardProvider = ({ children }) => {
 
       setCards(updatedCards);
       
-      // Update localStorage to reflect the change
-      try {
-        localStorage.setItem('flashcards', JSON.stringify(updatedCards));
-      } catch (storageError) {
-        console.error("Error updating localStorage:", storageError);
-      }
+      // Always save to localStorage
+      saveCardsToLocalStorage(updatedCards);
 
-      // Then try to update in Firestore, but don't fail if it doesn't work
+      // Then try to update in Firestore if user is logged in
       if (user) {
         try {
-          // Try Firestore update
           const docRef = doc(db, 'flashcards', id);
           const docSnapshot = await getDoc(docRef);
           
@@ -362,7 +409,6 @@ export const FlashcardProvider = ({ children }) => {
       }
     } catch (error) {
       console.error('Error updating card status:', error);
-      // Continue silently with no UI indication
     }
   };
 
@@ -396,7 +442,7 @@ export const FlashcardProvider = ({ children }) => {
     return filteredCards[newIndex];
   }, [cards, currentCardIndex, studyMode]);
 
-  // Function to shuffle cards with improved implementation
+  // Function to shuffle cards
   const shuffleCards = useCallback(() => {
     if (!Array.isArray(cards) || cards.length === 0) return;
     
@@ -411,23 +457,18 @@ export const FlashcardProvider = ({ children }) => {
     setCards(shuffledCards);
     setCurrentCardIndex(0);
     
-    // Also update localStorage
-    try {
-      localStorage.setItem('flashcards', JSON.stringify(shuffledCards));
-    } catch (error) {
-      console.error("Error saving shuffled cards to localStorage:", error);
-    }
+    // Also save to localStorage
+    saveCardsToLocalStorage(shuffledCards);
     
     console.log('Cards shuffled successfully');
-  }, [cards]);
+  }, [cards, saveCardsToLocalStorage]);
   
-  // Function to reset all cards to unknown - MODIFIED TO SUPPORT OFFLINE MODE
+  // Function to reset all cards to unknown
   const resetCards = async () => {
     if (!Array.isArray(cards) || cards.length === 0) return;
     
     try {
       setCardsLoading(true);
-      // Don't set syncing status to avoid UI indicator
       
       // Prepare all cards for reset
       const resetCardsData = cards.map(card => ({ 
@@ -442,16 +483,14 @@ export const FlashcardProvider = ({ children }) => {
       setCards(resetCardsData);
       setCurrentCardIndex(0);
       
-      // Update localStorage
-      try {
-        localStorage.setItem('flashcards', JSON.stringify(resetCardsData));
-      } catch (storageError) {
-        console.error("Error saving reset cards to localStorage:", storageError);
-      }
+      // Save to localStorage
+      saveCardsToLocalStorage(resetCardsData);
 
       // Try Firebase update if user is logged in
       if (user) {
         try {
+          setSyncStatus('syncing');
+          
           // Calculate how many batches we need
           const BATCH_SIZE = 450; // Stay well under the limit
           const batchCount = Math.ceil(resetCardsData.length / BATCH_SIZE);
@@ -486,8 +525,10 @@ export const FlashcardProvider = ({ children }) => {
           }
           
           setLastSyncTime(new Date().toISOString());
+          setSyncStatus('idle');
         } catch (firestoreError) {
           console.log('Firebase reset failed, but continuing with local state:', firestoreError.message);
+          setSyncStatus('error');
         }
       } else {
         console.log("User not logged in, cards reset in local storage only");
@@ -496,7 +537,7 @@ export const FlashcardProvider = ({ children }) => {
       console.log('All cards reset successfully');
     } catch (error) {
       console.error('Error resetting cards:', error);
-      // Don't set error status, just log it
+      setSyncStatus('error');
     } finally {
       setCardsLoading(false);
     }
@@ -531,7 +572,7 @@ export const FlashcardProvider = ({ children }) => {
     return filteredCards[safeIndex];
   }, [cards, currentCardIndex, studyMode]);
 
-  // Function to clear all cards - MODIFIED TO SUPPORT OFFLINE MODE
+  // Function to clear all cards
   const clearCards = async () => {
     try {
       setCardsLoading(true);
@@ -546,6 +587,8 @@ export const FlashcardProvider = ({ children }) => {
       // If the user is logged in, try to clear cards from Firebase too
       if (user) {
         try {
+          setSyncStatus('syncing');
+          
           // First, get all user's cards
           const q = query(collection(db, 'flashcards'), where('userId', '==', user.uid));
           const snapshot = await getDocs(q);
@@ -580,8 +623,10 @@ export const FlashcardProvider = ({ children }) => {
           }
           
           setLastSyncTime(new Date().toISOString());
+          setSyncStatus('idle');
         } catch (firestoreError) {
           console.log('Firebase clear failed, but continuing with empty local state:', firestoreError.message);
+          setSyncStatus('error');
         }
       } else {
         console.log("User not logged in, cards cleared from local storage only");
@@ -592,6 +637,7 @@ export const FlashcardProvider = ({ children }) => {
       return true;
     } catch (error) {
       console.error('Error clearing cards:', error);
+      setSyncStatus('error');
       // Return true anyway since local state is cleared
       return true;
     } finally {
@@ -599,7 +645,7 @@ export const FlashcardProvider = ({ children }) => {
     }
   };
 
-  // Function to import cards - MODIFIED TO SUPPORT OFFLINE MODE
+  // Function to import cards
   const importCards = async (importedCards) => {
     if (!Array.isArray(importedCards) || importedCards.length === 0) {
       throw new Error("No valid cards to import");
@@ -637,18 +683,36 @@ export const FlashcardProvider = ({ children }) => {
         throw new Error("No valid cards found in import file");
       }
       
+      // Create a map of existing cards by content for deduplication
+      const existingContentMap = new Map();
+      cards.forEach(card => {
+        const contentKey = `${card.front.trim()}::${card.back.trim()}`;
+        existingContentMap.set(contentKey, card);
+      });
+      
       // Generate client-side IDs for new cards if they don't have one
-      const cardsToAdd = uniqueImportCards.map(card => ({
-        id: card.id || Math.random().toString(36).substring(2, 15),
-        front: card.front,
-        back: card.back,
-        known: card.known !== undefined ? Boolean(card.known) : false,
-        timesReviewed: card.timesReviewed || 0,
-        lastReviewed: card.lastReviewed || null,
-        userId: user ? user.uid : 'local-user', // Use 'local-user' if not logged in
-        createdAt: new Date().toISOString(),
-        lastModified: new Date().toISOString()
-      }));
+      const cardsToAdd = uniqueImportCards.map(card => {
+        // Check if this card already exists in memory
+        const contentKey = `${card.front.trim()}::${card.back.trim()}`;
+        const existingCard = existingContentMap.get(contentKey);
+        
+        // If this card already exists, preserve its known status if the import doesn't specify
+        const known = existingCard && card.known === undefined 
+          ? existingCard.known 
+          : (card.known !== undefined ? Boolean(card.known) : false);
+        
+        return {
+          id: card.id || Math.random().toString(36).substring(2, 15),
+          front: card.front,
+          back: card.back,
+          known: known,
+          timesReviewed: card.timesReviewed || (existingCard ? existingCard.timesReviewed : 0) || 0,
+          lastReviewed: card.lastReviewed || (existingCard ? existingCard.lastReviewed : null) || null,
+          userId: user ? user.uid : 'local-user', // Use 'local-user' if not logged in
+          createdAt: card.createdAt || new Date().toISOString(),
+          lastModified: new Date().toISOString()
+        };
+      });
       
       // Add cards to local state, avoiding duplicates
       setCards(prevCards => {
@@ -661,11 +725,7 @@ export const FlashcardProvider = ({ children }) => {
         const combinedCards = [...prevCards, ...uniqueNewCards];
         
         // Save to localStorage
-        try {
-          localStorage.setItem('flashcards', JSON.stringify(combinedCards));
-        } catch (storageError) {
-          console.error("Error saving imported cards to localStorage:", storageError);
-        }
+        saveCardsToLocalStorage(combinedCards);
         
         return combinedCards;
       });
@@ -675,6 +735,7 @@ export const FlashcardProvider = ({ children }) => {
       // If user is logged in, try to sync with Firebase
       if (user) {
         try {
+          setSyncStatus('syncing');
           console.log("User is logged in, attempting to sync imported cards with Firebase");
           
           // Get existing cards to check for duplicates
@@ -682,11 +743,11 @@ export const FlashcardProvider = ({ children }) => {
           const snapshot = await getDocs(q);
           
           // Create a map of existing content keys
-          const existingContentMap = new Map();
+          const firestoreContentMap = new Map();
           snapshot.docs.forEach(doc => {
             const data = doc.data();
             const contentKey = `${data.front?.trim() || ''}::${data.back?.trim() || ''}`;
-            existingContentMap.set(contentKey, doc.id);
+            firestoreContentMap.set(contentKey, doc.id);
           });
           
           // Separate cards into new and existing
@@ -696,16 +757,16 @@ export const FlashcardProvider = ({ children }) => {
           cardsToAdd.forEach(card => {
             const contentKey = `${card.front.trim()}::${card.back.trim()}`;
             
-            if (existingContentMap.has(contentKey)) {
-              // This card already exists, we'll update it
-              const existingId = existingContentMap.get(contentKey);
+            if (firestoreContentMap.has(contentKey)) {
+              // This card already exists in Firestore, we'll update it
+              const existingId = firestoreContentMap.get(contentKey);
               cardsToUpdate.push({
                 id: existingId,
                 ...card,
                 userId: user.uid
               });
             } else {
-              // This is a new card
+              // This is a new card for Firestore
               newCards.push({
                 ...card,
                 userId: user.uid
@@ -787,8 +848,10 @@ export const FlashcardProvider = ({ children }) => {
           }
           
           setLastSyncTime(new Date().toISOString());
+          setSyncStatus('idle');
         } catch (firestoreError) {
           console.log('Firebase import failed, but continuing with local state:', firestoreError.message);
+          setSyncStatus('error');
         }
       } else {
         console.log("User not logged in, cards imported to local storage only");
@@ -797,13 +860,14 @@ export const FlashcardProvider = ({ children }) => {
       return cardsToAdd.length;
     } catch (error) {
       console.error('Error importing cards:', error);
+      setSyncStatus('error');
       throw new Error(`Failed to import cards: ${error.message}`);
     } finally {
       setCardsLoading(false);
     }
   };
 
-  // Force a refresh of cards from Firestore
+  // Force a refresh of cards from Firestore - updated to use refreshUserCards
   const refreshCards = async () => {
     if (!user) {
       console.log("No user logged in, can't refresh from Firebase");
@@ -812,7 +876,7 @@ export const FlashcardProvider = ({ children }) => {
     
     try {
       console.log("Forcing refresh of cards from Firestore");
-      await loadUserCards();
+      await refreshUserCards(); // Use the new function that properly handles the ref
       return true;
     } catch (error) {
       console.error("Error refreshing cards:", error);
@@ -820,31 +884,31 @@ export const FlashcardProvider = ({ children }) => {
     }
   };
 
-  return (
-    <FlashcardContext.Provider value={{
-      cards,
-      setCards,
-      stats,
-      studyMode,
-      setStudyMode,
-      setCardStatus,
-      getNextCard,
-      resetCards,
-      shuffleCards,
-      getCurrentCard,
-      user,
-      loading,
-      registerUser,
-      loginUser,
-      logoutUser,
-      importCards,
-      clearCards,
-      refreshCards,
-      syncStatus,
-      setSyncStatus,
-      lastSyncTime
-    }}>
-      {children}
-    </FlashcardContext.Provider>
-  );
-};
+    return (
+      <FlashcardContext.Provider value={{
+        cards,
+        setCards,
+        stats,
+        studyMode,
+        setStudyMode,
+        setCardStatus,
+        getNextCard,
+        resetCards,
+        shuffleCards,
+        getCurrentCard,
+        user,
+        loading,
+        registerUser,
+        loginUser,
+        logoutUser,
+        importCards,
+        clearCards,
+        refreshCards,
+        syncStatus,
+        setSyncStatus,
+        lastSyncTime
+      }}>
+        {children}
+      </FlashcardContext.Provider>
+    );
+  };
