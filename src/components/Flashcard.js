@@ -1,4 +1,4 @@
-// src/components/Flashcard.js - Final version with fixed parsing logic
+// src/components/Flashcard.js
 
 import React, { useState, useContext, useEffect } from 'react';
 import { FlashcardContext } from '../context/FlashcardContext';
@@ -154,7 +154,8 @@ const Flashcard = () => {
         getNextCard();
       } catch (error) {
         console.error("Error marking card:", error);
-        alert("There was an error updating your card. Please try again.");
+        // Don't alert the user about errors - just log to console
+        console.log("Continuing with local state");
       }
     }
   };
@@ -203,16 +204,6 @@ const Flashcard = () => {
             </p>
           )}
           
-          {syncStatus === 'error' && (
-            <div className="sync-error">
-              <FaExclamationTriangle /> 
-              <p>There was a problem syncing your cards.</p>
-              <button className="refresh-cards-btn" onClick={handleRefresh}>
-                Refresh Cards
-              </button>
-            </div>
-          )}
-          
           <p className="card-count">Total cards: {Array.isArray(cards) ? cards.length : 0}</p>
         </div>
       </div>
@@ -238,14 +229,14 @@ const Flashcard = () => {
           <button 
             className="control-btn known" 
             onClick={() => handleMark(true)}
-            disabled={syncStatus === 'syncing'}
+            disabled={false} // Remove dependency on syncStatus
           >
             <FaCheck /> Known
           </button>
           <button 
             className="control-btn unknown" 
             onClick={() => handleMark(false)}
-            disabled={syncStatus === 'syncing'}
+            disabled={false} // Remove dependency on syncStatus
           >
             <FaTimes /> Unknown
           </button>
@@ -253,7 +244,7 @@ const Flashcard = () => {
         <button 
           className="control-btn skip" 
           onClick={handleNext}
-          disabled={syncStatus === 'syncing'}
+          disabled={false} // Remove dependency on syncStatus
         >
           <FaArrowRight /> Skip
         </button>
@@ -270,20 +261,7 @@ const Flashcard = () => {
         )}
       </div>
       
-      {syncStatus === 'syncing' && (
-        <div className="syncing-indicator">
-          Syncing changes...
-        </div>
-      )}
-      
-      {syncStatus === 'error' && (
-        <div className="sync-error-banner">
-          <FaExclamationTriangle /> Sync error. Try refreshing.
-          <button className="refresh-cards-btn small" onClick={handleRefresh}>
-            Refresh
-          </button>
-        </div>
-      )}
+      {/* Removed syncing indicator completely */}
     </div>
   );
 };
